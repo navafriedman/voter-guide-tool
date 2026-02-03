@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { User, Globe, Star, Check, X, Ban, ChevronLeft, ChevronRight, Menu, ArrowLeft } from 'lucide-react';
+import { User, Globe, Star, Check, X, Ban, ChevronLeft, ChevronRight, Menu, ArrowLeft, UserCheck } from 'lucide-react';
 import type { VoterGuide, BallotData, Race, Candidate, RecommendationStatus } from '@/types';
 
 interface PublicGuideViewProps {
@@ -142,6 +142,7 @@ function RacePublicSection({
   const [canScrollRight, setCanScrollRight] = useState(true);
 
   const raceName = race.district ? `${race.name} - ${race.district}` : race.name;
+  const isUncontested = race.candidates.length === 1;
 
   const updateScrollButtons = () => {
     if (scrollContainerRef.current) {
@@ -174,7 +175,15 @@ function RacePublicSection({
 
   return (
     <div className="mb-8">
-      <h3 className="text-lg font-bold text-gray-900 mb-4">{raceName}</h3>
+      <div className="flex items-center gap-3 mb-4">
+        <h3 className="text-lg font-bold text-gray-900">{raceName}</h3>
+        {isUncontested && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+            <UserCheck className="w-3 h-3" />
+            Uncontested
+          </span>
+        )}
+      </div>
 
       <div className="relative">
         {/* Scroll Left Button */}

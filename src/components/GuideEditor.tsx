@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Save, Eye, Share2, Upload, User, RotateCcw, SkipForward } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Save, Eye, Share2, Upload, User, RotateCcw, SkipForward, Filter } from 'lucide-react';
 import { RaceSection } from './RaceSection';
 import type { VoterGuide, BallotData, CandidateRecommendation } from '@/types';
 import { saveGuide, updateRecommendation, skipRace, unskipRace, skipCandidate, unskipCandidate, isRaceSkipped, isCandidateSkipped } from '@/lib/storage';
@@ -17,14 +17,37 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
   const [localGuide, setLocalGuide] = useState<VoterGuide>(guide);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [partyFilter, setPartyFilter] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLocalGuide(guide);
   }, [guide]);
 
-  // Calculate progress (excluding skipped items)
-  const nonSkippedRaces = ballot.races.filter(race => !isRaceSkipped(localGuide, race.id));
+  // Extract unique parties from ballot
+  const availableParties = useMemo(() => {
+    const parties = new Set<string>();
+    ballot.races.forEach(race => {
+      race.candidates.forEach(c => {
+        if (c.party) parties.add(c.party);
+      });
+    });
+    return Array.from(parties).sort();
+  }, [ballot]);
+
+  // Filter races based on party (for primaries)
+  const filteredRaces = useMemo(() => {
+    if (!partyFilter) return ballot.races;
+    return ballot.races
+      .map(race => ({
+        ...race,
+        candidates: race.candidates.filter(c => c.party === partyFilter),
+      }))
+      .filter(race => race.candidates.length > 0);
+  }, [ballot.races, partyFilter]);
+
+  // Calculate progress (excluding skipped items, respecting party filter)
+  const nonSkippedRaces = filteredRaces.filter(race => !isRaceSkipped(localGuide, race.id));
   const totalCandidates = nonSkippedRaces.reduce((sum, race) => {
     return sum + race.candidates.filter(c => !isCandidateSkipped(localGuide, race.id, c.id)).length;
   }, 0);
@@ -315,27 +338,65 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
 
       {/* Races Section */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Races & Candidates
-        </h2>
-        <p className="text-sm text-gray-600 mb-4">
-          Click on a race to expand it and add your recommendations. You don&apos;t need to rate every candidate or every race.
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Races & Candidates
+            </h2>
+            <p className="text-sm text-gray-600">
+              Click on a race to expand it and add your recommendations.
+            </p>
+          </div>
 
-        <div className="space-y-3">
-          {ballot.races.map((race, index) => (
-            <RaceSection
-              key={race.id}
-              race={race}
-              guide={localGuide}
-              onRecommendationChange={handleRecommendationChange}
-              onSkipRace={(skip) => handleSkipRace(race.id, skip)}
-              onSkipCandidate={(candidateId, skip) => handleSkipCandidate(race.id, candidateId, skip)}
-              isEditing={true}
-              defaultExpanded={index === 0}
-            />
-          ))}
+          {/* Party Filter (for primaries) */}
+          {availableParties.length > 1 && (
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-500" />
+              <select
+                value={partyFilter || ''}
+                onChange={(e) => setPartyFilter(e.target.value || null)}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              >
+                <option value="">All Parties</option>
+                {availableParties.map(party => (
+                  <option key={party} value={party}>{party}</option>
+                ))}
+              </select>
+              {partyFilter && (
+                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  Primary mode
+                </span>
+              )}
+            </div>
+          )}
         </div>
+
+        {filteredRaces.length === 0 ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+            <p className="text-gray-500">No races found for the selected party filter.</p>
+            <button
+              onClick={() => setPartyFilter(null)}
+              className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+            >
+              Clear filter
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredRaces.map((race, index) => (
+              <RaceSection
+                key={race.id}
+                race={race}
+                guide={localGuide}
+                onRecommendationChange={handleRecommendationChange}
+                onSkipRace={(skip) => handleSkipRace(race.id, skip)}
+                onSkipCandidate={(candidateId, skip) => handleSkipCandidate(race.id, candidateId, skip)}
+                isEditing={true}
+                defaultExpanded={index === 0}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Skipped Items Section */}
