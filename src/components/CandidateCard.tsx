@@ -1,45 +1,78 @@
 'use client';
 
 import { useState } from 'react';
-import { ThumbsUp, ThumbsDown, Minus, User, Globe, Twitter, Facebook, Instagram, ChevronDown, ChevronUp } from 'lucide-react';
-import type { Candidate, CandidateEndorsement, EndorsementStatus } from '@/types';
+import { Star, Check, X, Ban, User, Globe, Twitter, Facebook, Instagram, ChevronDown, ChevronUp } from 'lucide-react';
+import type { Candidate, CandidateRecommendation, RecommendationStatus } from '@/types';
 
 interface CandidateCardProps {
   candidate: Candidate;
   raceId: string;
-  endorsement?: CandidateEndorsement;
-  onEndorsementChange?: (endorsement: CandidateEndorsement) => void;
+  recommendation?: CandidateRecommendation;
+  onRecommendationChange?: (recommendation: CandidateRecommendation) => void;
   isEditing?: boolean;
 }
 
-const statusColors: Record<EndorsementStatus, string> = {
-  support: 'border-green-500 bg-green-50',
-  oppose: 'border-red-500 bg-red-50',
-  neutral: 'border-yellow-500 bg-yellow-50',
+const statusColors: Record<RecommendationStatus, string> = {
+  top_pick: 'border-purple-500 bg-purple-50',
+  yes: 'border-green-500 bg-green-50',
+  no: 'border-orange-500 bg-orange-50',
+  strong_no: 'border-red-500 bg-red-50',
   none: 'border-gray-200 bg-white',
 };
 
-const statusButtonStyles: Record<EndorsementStatus, string> = {
-  support: 'bg-green-500 text-white',
-  oppose: 'bg-red-500 text-white',
-  neutral: 'bg-yellow-500 text-white',
-  none: 'bg-gray-200 text-gray-600',
+const statusLabels: Record<RecommendationStatus, string> = {
+  top_pick: 'Top Pick',
+  yes: 'Yes',
+  no: 'No',
+  strong_no: 'Strong No',
+  none: 'No Designation',
+};
+
+const statusButtonStyles: Record<RecommendationStatus, { active: string; inactive: string }> = {
+  top_pick: { active: 'bg-purple-500 text-white', inactive: 'bg-gray-100 text-gray-600 hover:bg-purple-100' },
+  yes: { active: 'bg-green-500 text-white', inactive: 'bg-gray-100 text-gray-600 hover:bg-green-100' },
+  no: { active: 'bg-orange-500 text-white', inactive: 'bg-gray-100 text-gray-600 hover:bg-orange-100' },
+  strong_no: { active: 'bg-red-500 text-white', inactive: 'bg-gray-100 text-gray-600 hover:bg-red-100' },
+  none: { active: 'bg-gray-200 text-gray-600', inactive: 'bg-gray-100 text-gray-600 hover:bg-gray-200' },
+};
+
+const StatusIcon = ({ status, className }: { status: RecommendationStatus; className?: string }) => {
+  switch (status) {
+    case 'top_pick':
+      return <Star className={className} fill="currentColor" />;
+    case 'yes':
+      return <Check className={className} />;
+    case 'no':
+      return <X className={className} />;
+    case 'strong_no':
+      return <Ban className={className} />;
+    default:
+      return null;
+  }
+};
+
+const statusIconColors: Record<RecommendationStatus, string> = {
+  top_pick: 'text-purple-500',
+  yes: 'text-green-500',
+  no: 'text-orange-500',
+  strong_no: 'text-red-500',
+  none: '',
 };
 
 export function CandidateCard({
   candidate,
   raceId,
-  endorsement,
-  onEndorsementChange,
+  recommendation,
+  onRecommendationChange,
   isEditing = false,
 }: CandidateCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const [reason, setReason] = useState(endorsement?.reason || '');
-  const status = endorsement?.status || 'none';
+  const [reason, setReason] = useState(recommendation?.reason || '');
+  const status = recommendation?.status || 'none';
 
-  const handleStatusChange = (newStatus: EndorsementStatus) => {
-    if (!onEndorsementChange) return;
-    onEndorsementChange({
+  const handleStatusChange = (newStatus: RecommendationStatus) => {
+    if (!onRecommendationChange) return;
+    onRecommendationChange({
       candidateId: candidate.id,
       raceId,
       status: newStatus,
@@ -49,8 +82,8 @@ export function CandidateCard({
 
   const handleReasonChange = (newReason: string) => {
     setReason(newReason);
-    if (!onEndorsementChange) return;
-    onEndorsementChange({
+    if (!onRecommendationChange) return;
+    onRecommendationChange({
       candidateId: candidate.id,
       raceId,
       status,
@@ -115,20 +148,18 @@ export function CandidateCard({
           )}
         </div>
 
-        {/* Endorsement Status Indicator (view mode) */}
+        {/* Recommendation Status Indicator (view mode) */}
         {!isEditing && status !== 'none' && (
-          <div className="flex-shrink-0">
-            {status === 'support' && <ThumbsUp className="w-6 h-6 text-green-500" />}
-            {status === 'oppose' && <ThumbsDown className="w-6 h-6 text-red-500" />}
-            {status === 'neutral' && <Minus className="w-6 h-6 text-yellow-500" />}
+          <div className={`flex-shrink-0 flex items-center gap-1 ${statusIconColors[status]}`}>
+            <StatusIcon status={status} className="w-6 h-6" />
           </div>
         )}
       </div>
 
-      {/* Endorsement Reason (view mode) */}
-      {!isEditing && endorsement?.reason && (
+      {/* Recommendation Reason (view mode) */}
+      {!isEditing && recommendation?.reason && (
         <div className="mt-3 pl-20">
-          <p className="text-sm text-gray-700 italic">&ldquo;{endorsement.reason}&rdquo;</p>
+          <p className="text-sm text-gray-700 italic">&ldquo;{recommendation.reason}&rdquo;</p>
         </div>
       )}
 
@@ -140,39 +171,48 @@ export function CandidateCard({
             className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
           >
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            {status === 'none' ? 'Add endorsement' : 'Edit endorsement'}
+            {status === 'none' ? 'Add recommendation' : `Edit recommendation (${statusLabels[status]})`}
           </button>
 
           {expanded && (
             <div className="mt-3 space-y-3">
               {/* Status Buttons */}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => handleStatusChange('support')}
+                  onClick={() => handleStatusChange('top_pick')}
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    status === 'support' ? statusButtonStyles.support : 'bg-gray-100 text-gray-600 hover:bg-green-100'
+                    status === 'top_pick' ? statusButtonStyles.top_pick.active : statusButtonStyles.top_pick.inactive
                   }`}
                 >
-                  <ThumbsUp className="w-4 h-4" />
-                  Support
+                  <Star className="w-4 h-4" />
+                  Top Pick
                 </button>
                 <button
-                  onClick={() => handleStatusChange('oppose')}
+                  onClick={() => handleStatusChange('yes')}
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    status === 'oppose' ? statusButtonStyles.oppose : 'bg-gray-100 text-gray-600 hover:bg-red-100'
+                    status === 'yes' ? statusButtonStyles.yes.active : statusButtonStyles.yes.inactive
                   }`}
                 >
-                  <ThumbsDown className="w-4 h-4" />
-                  Oppose
+                  <Check className="w-4 h-4" />
+                  Yes
                 </button>
                 <button
-                  onClick={() => handleStatusChange('neutral')}
+                  onClick={() => handleStatusChange('no')}
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    status === 'neutral' ? statusButtonStyles.neutral : 'bg-gray-100 text-gray-600 hover:bg-yellow-100'
+                    status === 'no' ? statusButtonStyles.no.active : statusButtonStyles.no.inactive
                   }`}
                 >
-                  <Minus className="w-4 h-4" />
-                  Neutral
+                  <X className="w-4 h-4" />
+                  No
+                </button>
+                <button
+                  onClick={() => handleStatusChange('strong_no')}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    status === 'strong_no' ? statusButtonStyles.strong_no.active : statusButtonStyles.strong_no.inactive
+                  }`}
+                >
+                  <Ban className="w-4 h-4" />
+                  Strong No
                 </button>
                 {status !== 'none' && (
                   <button
@@ -193,7 +233,7 @@ export function CandidateCard({
                   <textarea
                     value={reason}
                     onChange={(e) => handleReasonChange(e.target.value)}
-                    placeholder="Explain your endorsement..."
+                    placeholder="Explain your recommendation..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     rows={2}
                   />

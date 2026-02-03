@@ -3,13 +3,13 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { CandidateCard } from './CandidateCard';
-import type { Race, VoterGuide, CandidateEndorsement } from '@/types';
-import { getEndorsement } from '@/lib/storage';
+import type { Race, VoterGuide, CandidateRecommendation } from '@/types';
+import { getRecommendation } from '@/lib/storage';
 
 interface RaceSectionProps {
   race: Race;
   guide?: VoterGuide;
-  onEndorsementChange?: (endorsement: CandidateEndorsement) => void;
+  onRecommendationChange?: (recommendation: CandidateRecommendation) => void;
   isEditing?: boolean;
   defaultExpanded?: boolean;
 }
@@ -17,16 +17,16 @@ interface RaceSectionProps {
 export function RaceSection({
   race,
   guide,
-  onEndorsementChange,
+  onRecommendationChange,
   isEditing = false,
   defaultExpanded = false,
 }: RaceSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
-  const endorsedCount = guide
+  const recommendedCount = guide
     ? race.candidates.filter(c => {
-        const endorsement = getEndorsement(guide, race.id, c.id);
-        return endorsement && endorsement.status !== 'none';
+        const recommendation = getRecommendation(guide, race.id, c.id);
+        return recommendation && recommendation.status !== 'none';
       }).length
     : 0;
 
@@ -50,9 +50,9 @@ export function RaceSection({
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Users className="w-4 h-4" />
           <span>{race.candidates.length} candidate{race.candidates.length !== 1 ? 's' : ''}</span>
-          {endorsedCount > 0 && (
+          {recommendedCount > 0 && (
             <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-              {endorsedCount} endorsed
+              {recommendedCount} rated
             </span>
           )}
         </div>
@@ -65,14 +65,14 @@ export function RaceSection({
             <p className="text-sm text-gray-600 mb-4">{race.description}</p>
           )}
           {race.candidates.map(candidate => {
-            const endorsement = guide ? getEndorsement(guide, race.id, candidate.id) : undefined;
+            const recommendation = guide ? getRecommendation(guide, race.id, candidate.id) : undefined;
             return (
               <CandidateCard
                 key={candidate.id}
                 candidate={candidate}
                 raceId={race.id}
-                endorsement={endorsement}
-                onEndorsementChange={onEndorsementChange}
+                recommendation={recommendation}
+                onRecommendationChange={onRecommendationChange}
                 isEditing={isEditing}
               />
             );

@@ -110,7 +110,7 @@ export default function Home() {
               <div>
                 <h3 className="font-semibold text-gray-900 group-hover:text-blue-600">Create New Guide</h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  Start a new voter guide with your endorsements
+                  Start a new voter guide with your recommendations
                 </p>
               </div>
             </div>
@@ -167,7 +167,7 @@ export default function Home() {
                     <div>
                       <h3 className="font-medium text-gray-900">{guide.name}</h3>
                       <p className="text-sm text-gray-500">
-                        by {guide.authorName} • {guide.endorsements.filter(e => e.status !== 'none').length} endorsements
+                        by {guide.authorName} • {guide.recommendations.filter(r => r.status !== 'none').length} recommendations
                         {guide.isPublished ? ' • Published' : ' • Draft'}
                       </p>
                     </div>

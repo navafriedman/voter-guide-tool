@@ -1,4 +1,4 @@
-export type EndorsementStatus = 'support' | 'oppose' | 'neutral' | 'none';
+export type RecommendationStatus = 'top_pick' | 'yes' | 'no' | 'strong_no' | 'none';
 
 export interface Candidate {
   id: string;
@@ -21,10 +21,10 @@ export interface Race {
   candidates: Candidate[];
 }
 
-export interface CandidateEndorsement {
+export interface CandidateRecommendation {
   candidateId: string;
   raceId: string;
-  status: EndorsementStatus;
+  status: RecommendationStatus;
   reason?: string;
 }
 
@@ -39,7 +39,7 @@ export interface VoterGuide {
   createdAt: string;
   updatedAt: string;
   isPublished: boolean;
-  endorsements: CandidateEndorsement[];
+  recommendations: CandidateRecommendation[];
   socialLinks?: {
     website?: string;
     twitter?: string;

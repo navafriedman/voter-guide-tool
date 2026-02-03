@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Globe, Twitter, Facebook, Instagram } from 'lucide-react';
+import { User, Globe, Twitter, Facebook, Instagram, Star, Check } from 'lucide-react';
 import { RaceSection } from './RaceSection';
 import type { VoterGuide, BallotData } from '@/types';
 
@@ -10,16 +10,16 @@ interface PublicGuideViewProps {
 }
 
 export function PublicGuideView({ guide, ballot }: PublicGuideViewProps) {
-  // Filter to only show races where there's at least one endorsement
-  const racesWithEndorsements = ballot.races.filter(race =>
+  // Filter to only show races where there's at least one recommendation
+  const racesWithRecommendations = ballot.races.filter(race =>
     race.candidates.some(candidate =>
-      guide.endorsements.some(
-        e => e.raceId === race.id && e.candidateId === candidate.id && e.status !== 'none'
+      guide.recommendations.some(
+        r => r.raceId === race.id && r.candidateId === candidate.id && r.status !== 'none'
       )
     )
   );
 
-  // Also include races without endorsements but show them collapsed
+  // Also include races without recommendations but show them collapsed
   const allRaces = ballot.races;
 
   return (
@@ -39,7 +39,7 @@ export function PublicGuideView({ guide, ballot }: PublicGuideViewProps) {
             </div>
           )}
           <div className="flex-grow">
-            <p className="text-blue-200 text-sm font-medium mb-1">Local Voter Guide</p>
+            <p className="text-blue-200 text-sm font-medium mb-1">Voter Guide</p>
             <h1 className="text-2xl font-bold">{guide.name}</h1>
             <p className="text-blue-100 mt-1">by {guide.authorName}</p>
           </div>
@@ -85,29 +85,49 @@ export function PublicGuideView({ guide, ballot }: PublicGuideViewProps) {
         </div>
       )}
 
-      {/* Quick Summary */}
-      {racesWithEndorsements.length > 0 && (
+      {/* Quick Summary - Top Picks and Yes recommendations */}
+      {racesWithRecommendations.length > 0 && (
         <div className="mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">Quick Summary</h2>
           <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
-            {racesWithEndorsements.map(race => {
-              const endorsedCandidates = race.candidates.filter(c => {
-                const endorsement = guide.endorsements.find(
-                  e => e.raceId === race.id && e.candidateId === c.id
+            {racesWithRecommendations.map(race => {
+              const topPicks = race.candidates.filter(c => {
+                const rec = guide.recommendations.find(
+                  r => r.raceId === race.id && r.candidateId === c.id
                 );
-                return endorsement && endorsement.status === 'support';
+                return rec && rec.status === 'top_pick';
               });
 
-              if (endorsedCandidates.length === 0) return null;
+              const yesRecs = race.candidates.filter(c => {
+                const rec = guide.recommendations.find(
+                  r => r.raceId === race.id && r.candidateId === c.id
+                );
+                return rec && rec.status === 'yes';
+              });
+
+              if (topPicks.length === 0 && yesRecs.length === 0) return null;
 
               const raceName = race.district ? `${race.name} - ${race.district}` : race.name;
 
               return (
-                <div key={race.id} className="px-4 py-3 flex items-center justify-between">
-                  <span className="text-sm text-gray-600">{raceName}</span>
-                  <span className="font-medium text-gray-900">
-                    {endorsedCandidates.map(c => c.name).join(', ')}
-                  </span>
+                <div key={race.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">{raceName}</span>
+                    <div className="flex flex-wrap gap-2 justify-end">
+                      {topPicks.map(c => (
+                        <span key={c.id} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+                          <Star className="w-3 h-3" fill="currentColor" />
+                          {c.name}
+                        </span>
+                      ))}
+                      {yesRecs.map(c => (
+                        <span key={c.id} className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                          <Check className="w-3 h-3" />
+                          {c.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               );
             })}
@@ -120,9 +140,9 @@ export function PublicGuideView({ guide, ballot }: PublicGuideViewProps) {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">All Races</h2>
         <div className="space-y-3">
           {allRaces.map((race, index) => {
-            const hasEndorsements = race.candidates.some(c =>
-              guide.endorsements.some(
-                e => e.raceId === race.id && e.candidateId === c.id && e.status !== 'none'
+            const hasRecommendations = race.candidates.some(c =>
+              guide.recommendations.some(
+                r => r.raceId === race.id && r.candidateId === c.id && r.status !== 'none'
               )
             );
 
@@ -132,7 +152,7 @@ export function PublicGuideView({ guide, ballot }: PublicGuideViewProps) {
                 race={race}
                 guide={guide}
                 isEditing={false}
-                defaultExpanded={hasEndorsements && index < 3}
+                defaultExpanded={hasRecommendations && index < 3}
               />
             );
           })}
@@ -145,7 +165,7 @@ export function PublicGuideView({ guide, ballot }: PublicGuideViewProps) {
           This voter guide was created using the Voter Guide Tool.
         </p>
         <p className="text-xs text-gray-400 mt-1">
-          The endorsements in this guide represent the personal opinions of {guide.authorName}.
+          The recommendations in this guide represent the personal opinions of {guide.authorName}.
         </p>
       </div>
     </div>

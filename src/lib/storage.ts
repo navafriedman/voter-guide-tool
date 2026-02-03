@@ -1,7 +1,7 @@
 'use client';
 
 import { v4 as uuidv4 } from 'uuid';
-import type { VoterGuide, BallotData, CandidateEndorsement } from '@/types';
+import type { VoterGuide, BallotData, CandidateRecommendation } from '@/types';
 
 const STORAGE_KEYS = {
   BALLOT: 'voter_guide_ballot',
@@ -68,7 +68,7 @@ export function createNewGuide(name: string, authorName: string): VoterGuide {
     createdAt: now,
     updatedAt: now,
     isPublished: false,
-    endorsements: [],
+    recommendations: [],
   };
   return saveGuide(guide);
 }
@@ -80,33 +80,33 @@ export function deleteGuide(id: string): void {
   }
 }
 
-export function updateEndorsement(
+export function updateRecommendation(
   guideId: string,
-  endorsement: CandidateEndorsement
+  recommendation: CandidateRecommendation
 ): VoterGuide | null {
   const guide = getGuideById(guideId);
   if (!guide) return null;
 
-  const existingIndex = guide.endorsements.findIndex(
-    e => e.candidateId === endorsement.candidateId && e.raceId === endorsement.raceId
+  const existingIndex = guide.recommendations.findIndex(
+    r => r.candidateId === recommendation.candidateId && r.raceId === recommendation.raceId
   );
 
   if (existingIndex >= 0) {
-    guide.endorsements[existingIndex] = endorsement;
+    guide.recommendations[existingIndex] = recommendation;
   } else {
-    guide.endorsements.push(endorsement);
+    guide.recommendations.push(recommendation);
   }
 
   return saveGuide(guide);
 }
 
-export function getEndorsement(
+export function getRecommendation(
   guide: VoterGuide,
   raceId: string,
   candidateId: string
-): CandidateEndorsement | undefined {
-  return guide.endorsements.find(
-    e => e.raceId === raceId && e.candidateId === candidateId
+): CandidateRecommendation | undefined {
+  return guide.recommendations.find(
+    r => r.raceId === raceId && r.candidateId === candidateId
   );
 }
 
