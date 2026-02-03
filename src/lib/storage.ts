@@ -171,6 +171,65 @@ export function getRecommendation(
   );
 }
 
+// Skip/Unskip Race Functions
+export function isRaceSkipped(guide: VoterGuide, raceId: string): boolean {
+  return guide.skippedRaces?.includes(raceId) ?? false;
+}
+
+export function skipRace(guideId: string, raceId: string): VoterGuide | null {
+  const guide = getGuideById(guideId);
+  if (!guide) return null;
+
+  const skippedRaces = guide.skippedRaces || [];
+  if (!skippedRaces.includes(raceId)) {
+    skippedRaces.push(raceId);
+  }
+
+  return saveGuide({ ...guide, skippedRaces });
+}
+
+export function unskipRace(guideId: string, raceId: string): VoterGuide | null {
+  const guide = getGuideById(guideId);
+  if (!guide) return null;
+
+  const skippedRaces = (guide.skippedRaces || []).filter(id => id !== raceId);
+  return saveGuide({ ...guide, skippedRaces });
+}
+
+// Skip/Unskip Candidate Functions
+export function isCandidateSkipped(guide: VoterGuide, raceId: string, candidateId: string): boolean {
+  return guide.skippedCandidates?.some(
+    sc => sc.raceId === raceId && sc.candidateId === candidateId
+  ) ?? false;
+}
+
+export function skipCandidate(guideId: string, raceId: string, candidateId: string): VoterGuide | null {
+  const guide = getGuideById(guideId);
+  if (!guide) return null;
+
+  const skippedCandidates = guide.skippedCandidates || [];
+  const alreadySkipped = skippedCandidates.some(
+    sc => sc.raceId === raceId && sc.candidateId === candidateId
+  );
+
+  if (!alreadySkipped) {
+    skippedCandidates.push({ raceId, candidateId });
+  }
+
+  return saveGuide({ ...guide, skippedCandidates });
+}
+
+export function unskipCandidate(guideId: string, raceId: string, candidateId: string): VoterGuide | null {
+  const guide = getGuideById(guideId);
+  if (!guide) return null;
+
+  const skippedCandidates = (guide.skippedCandidates || []).filter(
+    sc => !(sc.raceId === raceId && sc.candidateId === candidateId)
+  );
+
+  return saveGuide({ ...guide, skippedCandidates });
+}
+
 // Current Guide Session
 export function setCurrentGuideId(id: string): void {
   if (typeof window === 'undefined') return;

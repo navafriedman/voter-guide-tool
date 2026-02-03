@@ -28,6 +28,11 @@ export interface CandidateRecommendation {
   reason?: string;
 }
 
+export interface SkippedCandidate {
+  raceId: string;
+  candidateId: string;
+}
+
 export interface VoterGuide {
   id: string;
   name: string;
@@ -40,6 +45,8 @@ export interface VoterGuide {
   updatedAt: string;
   isPublished: boolean;
   recommendations: CandidateRecommendation[];
+  skippedRaces?: string[];
+  skippedCandidates?: SkippedCandidate[];
   socialLinks?: {
     website?: string;
     twitter?: string;

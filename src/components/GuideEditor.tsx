@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Save, Eye, Share2, Upload, User } from 'lucide-react';
+import { Save, Eye, Share2, Upload, User, RotateCcw, SkipForward } from 'lucide-react';
 import { RaceSection } from './RaceSection';
 import type { VoterGuide, BallotData, CandidateRecommendation } from '@/types';
-import { saveGuide, updateRecommendation } from '@/lib/storage';
+import { saveGuide, updateRecommendation, skipRace, unskipRace, skipCandidate, unskipCandidate, isRaceSkipped, isCandidateSkipped } from '@/lib/storage';
 
 interface GuideEditorProps {
   guide: VoterGuide;
@@ -22,14 +22,52 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
     setLocalGuide(guide);
   }, [guide]);
 
-  // Calculate progress
-  const totalCandidates = ballot.races.reduce((sum, race) => sum + race.candidates.length, 0);
-  const ratedCandidates = localGuide.recommendations.filter(r => r.status !== 'none').length;
+  // Calculate progress (excluding skipped items)
+  const nonSkippedRaces = ballot.races.filter(race => !isRaceSkipped(localGuide, race.id));
+  const totalCandidates = nonSkippedRaces.reduce((sum, race) => {
+    return sum + race.candidates.filter(c => !isCandidateSkipped(localGuide, race.id, c.id)).length;
+  }, 0);
+  const ratedCandidates = localGuide.recommendations.filter(r => {
+    // Don't count recommendations for skipped races or candidates
+    if (isRaceSkipped(localGuide, r.raceId)) return false;
+    if (isCandidateSkipped(localGuide, r.raceId, r.candidateId)) return false;
+    return r.status !== 'none';
+  }).length;
   const progressPercent = totalCandidates > 0 ? Math.round((ratedCandidates / totalCandidates) * 100) : 0;
-  const racesWithRatings = new Set(localGuide.recommendations.filter(r => r.status !== 'none').map(r => r.raceId)).size;
+  const racesWithRatings = new Set(
+    localGuide.recommendations
+      .filter(r => r.status !== 'none' && !isRaceSkipped(localGuide, r.raceId))
+      .map(r => r.raceId)
+  ).size;
+
+  // Count skipped items
+  const skippedRacesCount = localGuide.skippedRaces?.length || 0;
+  const skippedCandidatesCount = localGuide.skippedCandidates?.length || 0;
 
   const handleRecommendationChange = (recommendation: CandidateRecommendation) => {
     const updatedGuide = updateRecommendation(localGuide.id, recommendation);
+    if (updatedGuide) {
+      setLocalGuide(updatedGuide);
+      onGuideUpdate(updatedGuide);
+      setLastSaved(new Date());
+    }
+  };
+
+  const handleSkipRace = (raceId: string, skip: boolean) => {
+    const updatedGuide = skip
+      ? skipRace(localGuide.id, raceId)
+      : unskipRace(localGuide.id, raceId);
+    if (updatedGuide) {
+      setLocalGuide(updatedGuide);
+      onGuideUpdate(updatedGuide);
+      setLastSaved(new Date());
+    }
+  };
+
+  const handleSkipCandidate = (raceId: string, candidateId: string, skip: boolean) => {
+    const updatedGuide = skip
+      ? skipCandidate(localGuide.id, raceId, candidateId)
+      : unskipCandidate(localGuide.id, raceId, candidateId);
     if (updatedGuide) {
       setLocalGuide(updatedGuide);
       onGuideUpdate(updatedGuide);
@@ -76,7 +114,14 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-gray-700">Your Progress</h3>
           <span className="text-sm text-gray-500">
-            {ratedCandidates} of {totalCandidates} candidates rated ({racesWithRatings} of {ballot.races.length} races)
+            {ratedCandidates} of {totalCandidates} candidates rated ({racesWithRatings} of {nonSkippedRaces.length} races)
+            {(skippedRacesCount > 0 || skippedCandidatesCount > 0) && (
+              <span className="ml-2 text-gray-400">
+                • {skippedRacesCount > 0 && `${skippedRacesCount} race${skippedRacesCount !== 1 ? 's' : ''} skipped`}
+                {skippedRacesCount > 0 && skippedCandidatesCount > 0 && ', '}
+                {skippedCandidatesCount > 0 && `${skippedCandidatesCount} candidate${skippedCandidatesCount !== 1 ? 's' : ''} skipped`}
+              </span>
+            )}
           </span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
@@ -86,7 +131,7 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
           />
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          You don&apos;t need to rate every candidate - focus on the races you care about most.
+          You don&apos;t need to rate every candidate - focus on the races you care about most. Use Skip to hide items you want to review later.
         </p>
       </div>
 
@@ -248,12 +293,86 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
               race={race}
               guide={localGuide}
               onRecommendationChange={handleRecommendationChange}
+              onSkipRace={(skip) => handleSkipRace(race.id, skip)}
+              onSkipCandidate={(candidateId, skip) => handleSkipCandidate(race.id, candidateId, skip)}
               isEditing={true}
               defaultExpanded={index === 0}
             />
           ))}
         </div>
       </div>
+
+      {/* Skipped Items Section */}
+      {(skippedRacesCount > 0 || skippedCandidatesCount > 0) && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <SkipForward className="w-5 h-5 text-gray-500" />
+            <h2 className="text-lg font-semibold text-gray-700">Skipped Items</h2>
+            <span className="text-sm text-gray-500">
+              ({skippedRacesCount + skippedCandidatesCount} total)
+            </span>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            These items are hidden from your progress. Bring them back when you&apos;re ready to review.
+          </p>
+
+          {/* Skipped Races */}
+          {skippedRacesCount > 0 && (
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-gray-600 mb-2">Skipped Races</h3>
+              <div className="space-y-2">
+                {localGuide.skippedRaces?.map(raceId => {
+                  const race = ballot.races.find(r => r.id === raceId);
+                  if (!race) return null;
+                  const raceName = race.district ? `${race.name} - ${race.district}` : race.name;
+                  return (
+                    <div key={raceId} className="flex items-center justify-between bg-white rounded-lg px-4 py-2 border border-gray-200">
+                      <span className="text-gray-700">{raceName}</span>
+                      <button
+                        onClick={() => handleSkipRace(raceId, false)}
+                        className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        Bring Back
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Skipped Candidates */}
+          {skippedCandidatesCount > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-600 mb-2">Skipped Candidates</h3>
+              <div className="space-y-2">
+                {localGuide.skippedCandidates?.map(sc => {
+                  const race = ballot.races.find(r => r.id === sc.raceId);
+                  const candidate = race?.candidates.find(c => c.id === sc.candidateId);
+                  if (!race || !candidate) return null;
+                  const raceName = race.district ? `${race.name} - ${race.district}` : race.name;
+                  return (
+                    <div key={`${sc.raceId}-${sc.candidateId}`} className="flex items-center justify-between bg-white rounded-lg px-4 py-2 border border-gray-200">
+                      <div>
+                        <span className="text-gray-700">{candidate.name}</span>
+                        <span className="text-gray-400 text-sm ml-2">({raceName})</span>
+                      </div>
+                      <button
+                        onClick={() => handleSkipCandidate(sc.raceId, sc.candidateId, false)}
+                        className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        Bring Back
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Star, Check, X, Ban, User, Globe, Twitter, Facebook, Instagram, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Star, Check, X, Ban, User, Globe, Twitter, Facebook, Instagram, ChevronDown, ChevronUp, SkipForward, RotateCcw, MessageSquare } from 'lucide-react';
 import type { Candidate, CandidateRecommendation, RecommendationStatus } from '@/types';
 
 interface CandidateCardProps {
@@ -10,6 +10,8 @@ interface CandidateCardProps {
   recommendation?: CandidateRecommendation;
   onRecommendationChange?: (recommendation: CandidateRecommendation) => void;
   isEditing?: boolean;
+  isSkipped?: boolean;
+  onSkipToggle?: (skip: boolean) => void;
 }
 
 const statusColors: Record<RecommendationStatus, string> = {
@@ -65,10 +67,43 @@ export function CandidateCard({
   recommendation,
   onRecommendationChange,
   isEditing = false,
+  isSkipped = false,
+  onSkipToggle,
 }: CandidateCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [reason, setReason] = useState(recommendation?.reason || '');
   const status = recommendation?.status || 'none';
+
+  // Auto-expand when a status is selected
+  useEffect(() => {
+    if (status !== 'none' && isEditing) {
+      setExpanded(true);
+    }
+  }, [status, isEditing]);
+
+  // If skipped, show a simplified view
+  if (isSkipped && isEditing) {
+    return (
+      <div className="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4 opacity-60">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <SkipForward className="w-5 h-5 text-gray-400" />
+            <span className="text-gray-500">{candidate.name}</span>
+            <span className="text-xs text-gray-400">Skipped</span>
+          </div>
+          {onSkipToggle && (
+            <button
+              onClick={() => onSkipToggle(false)}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Bring Back
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const handleStatusChange = (newStatus: RecommendationStatus) => {
     if (!onRecommendationChange) return;
@@ -166,13 +201,24 @@ export function CandidateCard({
       {/* Editing Controls */}
       {isEditing && (
         <div className="mt-4 pt-4 border-t border-gray-200">
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-          >
-            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            {status === 'none' ? 'Add recommendation' : `Edit recommendation (${statusLabels[status]})`}
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {status === 'none' ? 'Add recommendation' : `Edit recommendation (${statusLabels[status]})`}
+            </button>
+            {onSkipToggle && (
+              <button
+                onClick={() => onSkipToggle(true)}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+              >
+                <SkipForward className="w-3 h-3" />
+                Skip
+              </button>
+            )}
+          </div>
 
           {expanded && (
             <div className="mt-3 space-y-3">
@@ -224,19 +270,25 @@ export function CandidateCard({
                 )}
               </div>
 
-              {/* Reason Input */}
+              {/* Commentary Input */}
               {status !== 'none' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Why? (optional)
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <label className="flex items-center gap-2 text-sm font-medium text-blue-800 mb-2">
+                    <MessageSquare className="w-4 h-4" />
+                    Add your commentary (optional)
                   </label>
                   <textarea
                     value={reason}
                     onChange={(e) => handleReasonChange(e.target.value)}
-                    placeholder="Explain your recommendation..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={2}
+                    placeholder="Why are you making this recommendation? Your explanation will be shown to viewers of your guide..."
+                    className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    rows={3}
                   />
+                  {!reason && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Adding commentary helps readers understand your reasoning.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
