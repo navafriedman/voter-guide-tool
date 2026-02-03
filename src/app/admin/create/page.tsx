@@ -7,6 +7,7 @@ import { GuideEditor } from '@/components/GuideEditor';
 import type { VoterGuide, BallotData } from '@/types';
 import { createNewGuide, getBallotData } from '@/lib/storage';
 import { useHydrated } from '@/lib/hooks';
+import { createGuideApi, trackWithSession } from '@/lib/api-client';
 
 export default function CreateGuidePage() {
   const hydrated = useHydrated();
@@ -20,11 +21,21 @@ export default function CreateGuidePage() {
     return getBallotData();
   }, [hydrated]);
 
-  const handleCreateGuide = () => {
+  const handleCreateGuide = async () => {
     if (!guideName.trim() || !authorName.trim()) return;
+
+    // Create in localStorage first (instant feedback)
     const newGuide = createNewGuide(guideName.trim(), authorName.trim());
     setGuide(newGuide);
     setStep('edit');
+
+    // Sync to database in background
+    try {
+      await createGuideApi(newGuide);
+      trackWithSession('guide_created', { guideId: newGuide.id });
+    } catch (error) {
+      console.warn('Failed to sync new guide to database:', error);
+    }
   };
 
   const handleGuideUpdate = (updatedGuide: VoterGuide) => {

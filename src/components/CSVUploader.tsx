@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { Upload, Download, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { parseCSV, generateSampleCSV } from '@/lib/csv-parser';
 import { saveBallotData } from '@/lib/storage';
+import { saveBallotApi, trackWithSession } from '@/lib/api-client';
 import type { BallotData } from '@/types';
 
 interface CSVUploaderProps {
@@ -24,15 +25,30 @@ export function CSVUploader({ onBallotLoaded }: CSVUploaderProps) {
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const content = e.target?.result as string;
       const result = parseCSV(content, ballotName.trim());
 
       if (result.success && result.ballot) {
+        // Save to localStorage first (instant feedback)
         saveBallotData(result.ballot);
         setErrors([]);
         setSuccess(true);
         onBallotLoaded(result.ballot);
+
+        // Sync to database in background
+        try {
+          await saveBallotApi(result.ballot);
+          trackWithSession('ballot_imported', {
+            metadata: {
+              ballotId: result.ballot.id,
+              raceCount: result.ballot.races.length,
+              candidateCount: result.ballot.races.reduce((sum, r) => sum + r.candidates.length, 0),
+            },
+          });
+        } catch (error) {
+          console.warn('Failed to sync ballot to database:', error);
+        }
       } else {
         setErrors(result.errors || ['Unknown error parsing CSV']);
         setSuccess(false);

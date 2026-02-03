@@ -5,6 +5,7 @@ import { Save, Eye, Share2, Upload, User, RotateCcw, SkipForward } from 'lucide-
 import { RaceSection } from './RaceSection';
 import type { VoterGuide, BallotData, CandidateRecommendation } from '@/types';
 import { saveGuide, updateRecommendation, skipRace, unskipRace, skipCandidate, unskipCandidate, isRaceSkipped, isCandidateSkipped } from '@/lib/storage';
+import { updateGuideApi, saveRecommendationApi, skipRaceApi, skipCandidateApi, trackWithSession } from '@/lib/api-client';
 
 interface GuideEditorProps {
   guide: VoterGuide;
@@ -44,16 +45,25 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
   const skippedRacesCount = localGuide.skippedRaces?.length || 0;
   const skippedCandidatesCount = localGuide.skippedCandidates?.length || 0;
 
-  const handleRecommendationChange = (recommendation: CandidateRecommendation) => {
+  const handleRecommendationChange = async (recommendation: CandidateRecommendation) => {
+    // Save to localStorage first (instant feedback)
     const updatedGuide = updateRecommendation(localGuide.id, recommendation);
     if (updatedGuide) {
       setLocalGuide(updatedGuide);
       onGuideUpdate(updatedGuide);
       setLastSaved(new Date());
+
+      // Sync to database in background
+      try {
+        await saveRecommendationApi(localGuide.id, recommendation);
+      } catch (error) {
+        console.warn('Failed to sync recommendation to database:', error);
+      }
     }
   };
 
-  const handleSkipRace = (raceId: string, skip: boolean) => {
+  const handleSkipRace = async (raceId: string, skip: boolean) => {
+    // Save to localStorage first (instant feedback)
     const updatedGuide = skip
       ? skipRace(localGuide.id, raceId)
       : unskipRace(localGuide.id, raceId);
@@ -61,10 +71,18 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
       setLocalGuide(updatedGuide);
       onGuideUpdate(updatedGuide);
       setLastSaved(new Date());
+
+      // Sync to database in background
+      try {
+        await skipRaceApi(localGuide.id, raceId, skip);
+      } catch (error) {
+        console.warn('Failed to sync skip race to database:', error);
+      }
     }
   };
 
-  const handleSkipCandidate = (raceId: string, candidateId: string, skip: boolean) => {
+  const handleSkipCandidate = async (raceId: string, candidateId: string, skip: boolean) => {
+    // Save to localStorage first (instant feedback)
     const updatedGuide = skip
       ? skipCandidate(localGuide.id, raceId, candidateId)
       : unskipCandidate(localGuide.id, raceId, candidateId);
@@ -72,6 +90,13 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
       setLocalGuide(updatedGuide);
       onGuideUpdate(updatedGuide);
       setLastSaved(new Date());
+
+      // Sync to database in background
+      try {
+        await skipCandidateApi(localGuide.id, raceId, candidateId, skip);
+      } catch (error) {
+        console.warn('Failed to sync skip candidate to database:', error);
+      }
     }
   };
 
@@ -96,12 +121,23 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
     reader.readAsDataURL(file);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
+
+    // Save to localStorage first (instant feedback)
     const saved = saveGuide(localGuide);
     setLocalGuide(saved);
     onGuideUpdate(saved);
     setLastSaved(new Date());
+
+    // Sync to database in background
+    try {
+      await updateGuideApi(localGuide.id, localGuide);
+      trackWithSession('guide_saved', { guideId: localGuide.id });
+    } catch (error) {
+      console.warn('Failed to sync guide to database:', error);
+    }
+
     setIsSaving(false);
   };
 
