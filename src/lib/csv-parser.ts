@@ -29,25 +29,25 @@ export function parseCSV(csvContent: string, ballotName: string): ParseResult {
   const racesMap = new Map<string, Race>();
 
   result.data.forEach((row, index) => {
-    if (!row.candidate_name) {
-      errors.push(`Row ${index + 2}: Missing candidate name`);
+    if (!row.race) {
+      errors.push(`Row ${index + 2}: Missing race`);
       return;
     }
 
-    if (!row.race_name) {
-      errors.push(`Row ${index + 2}: Missing race name`);
+    if (!row.candidate) {
+      errors.push(`Row ${index + 2}: Missing candidate`);
       return;
     }
 
-    const raceKey = `${row.race_name}${row.race_district ? `-${row.race_district}` : ''}`;
+    const raceKey = `${row.race}${row.district ? `-${row.district}` : ''}`;
 
     let race = racesMap.get(raceKey);
     if (!race) {
       race = {
         id: uuidv4(),
-        name: row.race_name,
-        district: row.race_district || undefined,
-        order: row.race_order ? parseInt(row.race_order, 10) : racesMap.size,
+        name: row.race,
+        district: row.district || undefined,
+        order: row.order ? parseInt(row.order, 10) : racesMap.size,
         candidates: [],
       };
       racesMap.set(raceKey, race);
@@ -55,14 +55,14 @@ export function parseCSV(csvContent: string, ballotName: string): ParseResult {
 
     const candidate: Candidate = {
       id: uuidv4(),
-      name: row.candidate_name,
-      party: row.candidate_party || undefined,
-      title: row.candidate_title || undefined,
-      photoUrl: row.candidate_photo_url || undefined,
-      website: row.candidate_website || undefined,
-      twitter: row.candidate_twitter || undefined,
-      facebook: row.candidate_facebook || undefined,
-      instagram: row.candidate_instagram || undefined,
+      name: row.candidate,
+      party: row.party || undefined,
+      title: row.title || undefined,
+      photoUrl: row.photo_url || undefined,
+      website: row.website || undefined,
+      twitter: row.twitter || undefined,
+      facebook: row.facebook || undefined,
+      instagram: row.instagram || undefined,
     };
 
     race.candidates.push(candidate);
@@ -85,25 +85,25 @@ export function parseCSV(csvContent: string, ballotName: string): ParseResult {
 
 export function generateSampleCSV(): string {
   const headers = [
-    'race_name',
-    'race_district',
-    'race_order',
-    'candidate_name',
-    'candidate_party',
-    'candidate_title',
-    'candidate_photo_url',
-    'candidate_website',
-    'candidate_twitter',
-    'candidate_facebook',
-    'candidate_instagram',
+    'race',
+    'candidate',
+    'district',
+    'order',
+    'party',
+    'title',
+    'photo_url',
+    'website',
+    'twitter',
+    'facebook',
+    'instagram',
   ];
 
   const sampleData = [
-    ['City Mayor', '', '1', 'Jane Smith', 'Democrat', 'Current Council Member', '', 'https://janesmith.com', '@janesmith', '', ''],
-    ['City Mayor', '', '1', 'John Doe', 'Republican', 'Business Owner', '', 'https://johndoe.com', '@johndoe', '', ''],
-    ['City Council', 'District 1', '2', 'Alice Johnson', 'Democrat', 'Community Organizer', '', '', '@alicejohnson', '', ''],
-    ['City Council', 'District 1', '2', 'Bob Wilson', 'Republican', 'Attorney', '', '', '', '', ''],
-    ['School Board', 'District 3', '3', 'Carol Davis', 'Nonpartisan', 'Educator', '', '', '', '', ''],
+    ['City Mayor', 'Jane Smith', '', '1', 'Democrat', 'Current Council Member', '', 'https://janesmith.com', '@janesmith', '', ''],
+    ['City Mayor', 'John Doe', '', '1', 'Republican', 'Business Owner', '', 'https://johndoe.com', '@johndoe', '', ''],
+    ['City Council', 'Alice Johnson', 'District 1', '2', 'Democrat', 'Community Organizer', '', '', '@alicejohnson', '', ''],
+    ['City Council', 'Bob Wilson', 'District 1', '2', 'Republican', 'Attorney', '', '', '', '', ''],
+    ['School Board', 'Carol Davis', 'District 3', '3', 'Nonpartisan', 'Educator', '', '', '', '', ''],
   ];
 
   const csv = [headers.join(','), ...sampleData.map(row => row.join(','))].join('\n');

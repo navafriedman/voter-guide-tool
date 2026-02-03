@@ -57,15 +57,15 @@ export interface BallotData {
 
 // CSV Import types
 export interface CandidateCSVRow {
-  race_name: string;
-  race_district?: string;
-  race_order?: string;
-  candidate_name: string;
-  candidate_party?: string;
-  candidate_title?: string;
-  candidate_photo_url?: string;
-  candidate_website?: string;
-  candidate_twitter?: string;
-  candidate_facebook?: string;
-  candidate_instagram?: string;
+  race: string;
+  candidate: string;
+  district?: string;
+  order?: string;
+  party?: string;
+  title?: string;
+  photo_url?: string;
+  website?: string;
+  twitter?: string;
+  facebook?: string;
+  instagram?: string;
 }

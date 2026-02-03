@@ -158,20 +158,20 @@ export function CSVUploader({ onBallotLoaded }: CSVUploaderProps) {
           <div>
             <h4 className="font-medium text-gray-800">CSV Format</h4>
             <p className="text-sm text-gray-600 mt-1">
-              Your CSV should include these columns (only <code className="bg-gray-200 px-1 rounded">race_name</code> and <code className="bg-gray-200 px-1 rounded">candidate_name</code> are required):
+              Your CSV should include these columns (only <code className="bg-gray-200 px-1 rounded">race</code> and <code className="bg-gray-200 px-1 rounded">candidate</code> are required):
             </p>
             <ul className="mt-2 text-sm text-gray-600 list-disc list-inside grid grid-cols-2 gap-1">
-              <li>race_name *</li>
-              <li>race_district</li>
-              <li>race_order</li>
-              <li>candidate_name *</li>
-              <li>candidate_party</li>
-              <li>candidate_title</li>
-              <li>candidate_photo_url</li>
-              <li>candidate_website</li>
-              <li>candidate_twitter</li>
-              <li>candidate_facebook</li>
-              <li>candidate_instagram</li>
+              <li>race *</li>
+              <li>candidate *</li>
+              <li>district</li>
+              <li>order</li>
+              <li>party</li>
+              <li>title</li>
+              <li>photo_url</li>
+              <li>website</li>
+              <li>twitter</li>
+              <li>facebook</li>
+              <li>instagram</li>
             </ul>
           </div>
         </div>
