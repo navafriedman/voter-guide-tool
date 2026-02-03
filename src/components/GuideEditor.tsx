@@ -349,7 +349,7 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
           </div>
 
           {/* Party Filter (for primaries) */}
-          {availableParties.length > 1 && (
+          {availableParties.length > 0 && (
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-gray-500" />
               <select
