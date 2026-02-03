@@ -1,13 +1,61 @@
 'use client';
 
 import { v4 as uuidv4 } from 'uuid';
-import type { VoterGuide, BallotData, CandidateRecommendation } from '@/types';
+import type { VoterGuide, BallotData, CandidateRecommendation, RecommendationStatus } from '@/types';
 
 const STORAGE_KEYS = {
   BALLOT: 'voter_guide_ballot',
   GUIDES: 'voter_guides',
   CURRENT_GUIDE: 'current_guide_id',
 };
+
+// Map old status values to new ones
+function migrateStatus(oldStatus: string): RecommendationStatus {
+  const statusMap: Record<string, RecommendationStatus> = {
+    'support': 'yes',
+    'oppose': 'no',
+    'neutral': 'none',
+    'none': 'none',
+    'top_pick': 'top_pick',
+    'yes': 'yes',
+    'no': 'no',
+    'strong_no': 'strong_no',
+  };
+  return statusMap[oldStatus] || 'none';
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LegacyGuide = any;
+
+// Migrate old guide data to new format
+function migrateGuide(guide: LegacyGuide): VoterGuide {
+  // If guide has old 'endorsements' field, migrate to 'recommendations'
+  if ('endorsements' in guide && !('recommendations' in guide)) {
+    const endorsements = guide.endorsements || [];
+    const recommendations = endorsements.map((e: LegacyGuide) => ({
+      ...e,
+      status: migrateStatus(e.status),
+    }));
+
+    // Create new guide without endorsements field
+    const { endorsements: _, ...restGuide } = guide;
+    return {
+      ...restGuide,
+      recommendations,
+    } as VoterGuide;
+  }
+
+  // Ensure recommendations array exists and migrate any old statuses
+  const recommendations = (guide.recommendations || []).map((r: LegacyGuide) => ({
+    ...r,
+    status: migrateStatus(r.status),
+  }));
+
+  return {
+    ...guide,
+    recommendations,
+  };
+}
 
 // Ballot Data Management
 export function saveBallotData(ballot: BallotData): void {
@@ -30,7 +78,20 @@ export function clearBallotData(): void {
 export function getAllGuides(): VoterGuide[] {
   if (typeof window === 'undefined') return [];
   const data = localStorage.getItem(STORAGE_KEYS.GUIDES);
-  return data ? JSON.parse(data) : [];
+  if (!data) return [];
+
+  const rawGuides = JSON.parse(data);
+  const migratedGuides = rawGuides.map(migrateGuide);
+
+  // Save migrated data back to localStorage if any changes were made
+  const needsMigration = rawGuides.some((g: LegacyGuide) =>
+    'endorsements' in g && !('recommendations' in g)
+  );
+  if (needsMigration) {
+    localStorage.setItem(STORAGE_KEYS.GUIDES, JSON.stringify(migratedGuides));
+  }
+
+  return migratedGuides;
 }
 
 export function getGuideById(id: string): VoterGuide | null {
