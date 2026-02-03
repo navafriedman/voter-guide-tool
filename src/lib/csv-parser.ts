@@ -10,13 +10,71 @@ export interface ParseResult {
   errors?: string[];
 }
 
+// Map alternative column names to our standard names
+const COLUMN_ALIASES: Record<string, string> = {
+  // Race aliases
+  'position_title': 'race',
+  'position': 'race',
+  'race_name': 'race',
+  'office': 'race',
+  'office_name': 'race',
+
+  // Candidate aliases
+  'candidate_full_name': 'candidate',
+  'candidate_name': 'candidate',
+  'full_name': 'candidate',
+  'name': 'candidate',
+
+  // District aliases
+  'race_district': 'district',
+
+  // Order aliases
+  'race_order': 'order',
+  'sort_order': 'order',
+
+  // Party aliases
+  'candidate_party': 'party',
+  'party_affiliation': 'party',
+  'political_party': 'party',
+
+  // Title aliases
+  'candidate_title': 'title',
+  'occupation': 'title',
+  'job_title': 'title',
+
+  // Photo aliases
+  'candidate_photo_url': 'photo_url',
+  'photo': 'photo_url',
+  'image': 'photo_url',
+  'image_url': 'photo_url',
+  'headshot': 'photo_url',
+
+  // Website aliases
+  'candidate_website': 'website',
+  'url': 'website',
+  'campaign_website': 'website',
+
+  // Social aliases
+  'candidate_twitter': 'twitter',
+  'twitter_handle': 'twitter',
+  'candidate_facebook': 'facebook',
+  'facebook_url': 'facebook',
+  'candidate_instagram': 'instagram',
+  'instagram_handle': 'instagram',
+};
+
+function normalizeHeader(header: string): string {
+  const normalized = header.toLowerCase().trim().replace(/\s+/g, '_');
+  return COLUMN_ALIASES[normalized] || normalized;
+}
+
 export function parseCSV(csvContent: string, ballotName: string): ParseResult {
   const errors: string[] = [];
 
   const result = Papa.parse<CandidateCSVRow>(csvContent, {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (header) => header.toLowerCase().trim().replace(/\s+/g, '_'),
+    transformHeader: normalizeHeader,
   });
 
   if (result.errors.length > 0) {
