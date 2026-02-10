@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGuideById, updateGuide, deleteGuide, trackEvent } from '@/lib/db-repository';
+import { getGuideById, updateGuide, createGuide, deleteGuide, trackEvent } from '@/lib/db-repository';
+import type { VoterGuide } from '@/types';
 
 interface RouteParams {
   params: Promise<{ guideId: string }>;
@@ -36,36 +37,60 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PUT /api/guides/[guideId] - Update a guide
+// PUT /api/guides/[guideId] - Update or create a guide (upsert)
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { guideId } = await params;
     const body = await request.json();
 
     const existingGuide = await getGuideById(guideId);
+
+    let resultGuide: VoterGuide;
+    let eventType: string;
+
     if (!existingGuide) {
-      return NextResponse.json(
-        { error: 'Guide not found' },
-        { status: 404 }
-      );
+      // Guide doesn't exist in cloud - create it
+      const now = new Date().toISOString();
+      const newGuide: VoterGuide = {
+        id: guideId,
+        name: body.name || 'Untitled Guide',
+        authorName: body.authorName || 'Anonymous',
+        authorPhoto: body.authorPhoto,
+        authorBio: body.authorBio,
+        bannerPhoto: body.bannerPhoto,
+        ballotId: body.ballotId,
+        ballotName: body.ballotName,
+        ballotLocation: body.ballotLocation,
+        isPublished: body.isPublished || false,
+        socialLinks: body.socialLinks,
+        createdAt: body.createdAt || now,
+        updatedAt: now,
+        recommendations: body.recommendations || [],
+        skippedRaces: body.skippedRaces || [],
+        skippedCandidates: body.skippedCandidates || [],
+      };
+      resultGuide = await createGuide(newGuide);
+      eventType = 'guide_created_from_sync';
+    } else {
+      // Guide exists - update it
+      resultGuide = await updateGuide({
+        ...existingGuide,
+        ...body,
+        id: guideId, // Ensure ID doesn't change
+      });
+      eventType = 'guide_updated';
     }
 
-    const updatedGuide = await updateGuide({
-      ...existingGuide,
-      ...body,
-      id: guideId, // Ensure ID doesn't change
-    });
-
-    // Track update event
+    // Track event
     await trackEvent({
-      eventType: 'guide_updated',
+      eventType,
       guideId,
       metadata: { updatedFields: Object.keys(body) },
       userAgent: request.headers.get('user-agent') || undefined,
       ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
     });
 
-    return NextResponse.json({ guide: updatedGuide });
+    return NextResponse.json({ guide: resultGuide });
   } catch (error) {
     console.error('Error updating guide:', error);
     return NextResponse.json(

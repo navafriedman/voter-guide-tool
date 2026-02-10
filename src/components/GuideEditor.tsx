@@ -5,7 +5,7 @@ import { Save, Eye, Share2, Upload, User, RotateCcw, SkipForward, Filter, Downlo
 import { RaceSection } from './RaceSection';
 import type { VoterGuide, BallotData, CandidateRecommendation } from '@/types';
 import { saveGuide, updateRecommendation, skipRace, unskipRace, skipCandidate, unskipCandidate, isRaceSkipped, isCandidateSkipped } from '@/lib/storage';
-import { updateGuideApi, saveRecommendationApi, skipRaceApi, skipCandidateApi, trackWithSession } from '@/lib/api-client';
+import { updateGuideApi, saveBallotApi, saveRecommendationApi, skipRaceApi, skipCandidateApi, trackWithSession } from '@/lib/api-client';
 import { exportGuideToCSV, downloadCSV, generateExportFilename } from '@/lib/csv-export';
 
 interface GuideEditorProps {
@@ -162,16 +162,25 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
   const handleSave = async () => {
     setIsSaving(true);
 
+    // Ensure guide has ballotId linked
+    const guideToSave = {
+      ...localGuide,
+      ballotId: localGuide.ballotId || ballot.id,
+    };
+
     // Save to localStorage first (instant feedback)
-    const saved = saveGuide(localGuide);
+    const saved = saveGuide(guideToSave);
     setLocalGuide(saved);
     onGuideUpdate(saved);
     setLastSaved(new Date());
 
     // Sync to database in background
     try {
-      await updateGuideApi(localGuide.id, localGuide);
-      trackWithSession('guide_saved', { guideId: localGuide.id });
+      // Save ballot first (so it exists when guide references it)
+      await saveBallotApi(ballot);
+      // Then save/update the guide
+      await updateGuideApi(guideToSave.id, guideToSave);
+      trackWithSession('guide_saved', { guideId: guideToSave.id });
     } catch (error) {
       console.warn('Failed to sync guide to database:', error);
     }
