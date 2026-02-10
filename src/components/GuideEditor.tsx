@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Save, Eye, Share2, Upload, User, RotateCcw, SkipForward, Filter } from 'lucide-react';
+import { Save, Eye, Share2, Upload, User, RotateCcw, SkipForward, Filter, Download } from 'lucide-react';
 import { RaceSection } from './RaceSection';
 import type { VoterGuide, BallotData, CandidateRecommendation } from '@/types';
 import { saveGuide, updateRecommendation, skipRace, unskipRace, skipCandidate, unskipCandidate, isRaceSkipped, isCandidateSkipped } from '@/lib/storage';
 import { updateGuideApi, saveRecommendationApi, skipRaceApi, skipCandidateApi, trackWithSession } from '@/lib/api-client';
+import { exportGuideToCSV, downloadCSV, generateExportFilename } from '@/lib/csv-export';
 
 interface GuideEditorProps {
   guide: VoterGuide;
@@ -162,6 +163,13 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
     }
 
     setIsSaving(false);
+  };
+
+  const handleDownloadCSV = () => {
+    const csv = exportGuideToCSV(localGuide, ballot);
+    const filename = generateExportFilename(localGuide.name);
+    downloadCSV(csv, filename);
+    trackWithSession('guide_exported', { guideId: localGuide.id, metadata: { format: 'csv' } });
   };
 
   const previewUrl = `/guide/${localGuide.id}`;
@@ -327,6 +335,14 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
               Copy Share Link
             </button>
           )}
+
+          <button
+            onClick={handleDownloadCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Download CSV
+          </button>
 
           {lastSaved && (
             <span className="self-center text-sm text-gray-500">
