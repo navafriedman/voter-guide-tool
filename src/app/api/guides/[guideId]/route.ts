@@ -9,7 +9,7 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { guideId } = await params;
-    const guide = getGuideById(guideId);
+    const guide = await getGuideById(guideId);
 
     if (!guide) {
       return NextResponse.json(
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Track view event
-    trackEvent({
+    await trackEvent({
       eventType: 'guide_viewed',
       guideId,
       userAgent: request.headers.get('user-agent') || undefined,
@@ -42,7 +42,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { guideId } = await params;
     const body = await request.json();
 
-    const existingGuide = getGuideById(guideId);
+    const existingGuide = await getGuideById(guideId);
     if (!existingGuide) {
       return NextResponse.json(
         { error: 'Guide not found' },
@@ -50,14 +50,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const updatedGuide = updateGuide({
+    const updatedGuide = await updateGuide({
       ...existingGuide,
       ...body,
       id: guideId, // Ensure ID doesn't change
     });
 
     // Track update event
-    trackEvent({
+    await trackEvent({
       eventType: 'guide_updated',
       guideId,
       metadata: { updatedFields: Object.keys(body) },
@@ -79,7 +79,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { guideId } = await params;
-    const deleted = deleteGuide(guideId);
+    const deleted = await deleteGuide(guideId);
 
     if (!deleted) {
       return NextResponse.json(
@@ -89,7 +89,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Track delete event
-    trackEvent({
+    await trackEvent({
       eventType: 'guide_deleted',
       guideId,
       userAgent: request.headers.get('user-agent') || undefined,

@@ -12,7 +12,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { guideId } = await params;
     const body = await request.json() as CandidateRecommendation;
 
-    const guide = getGuideById(guideId);
+    const guide = await getGuideById(guideId);
     if (!guide) {
       return NextResponse.json(
         { error: 'Guide not found' },
@@ -22,13 +22,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // If status is 'none', delete the recommendation instead
     if (body.status === 'none') {
-      deleteRecommendation(guideId, body.raceId, body.candidateId);
+      await deleteRecommendation(guideId, body.raceId, body.candidateId);
     } else {
-      saveRecommendation(guideId, body);
+      await saveRecommendation(guideId, body);
     }
 
     // Track recommendation event
-    trackEvent({
+    await trackEvent({
       eventType: 'recommendation_changed',
       guideId,
       raceId: body.raceId,
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
     // Return updated guide
-    const updatedGuide = getGuideById(guideId);
+    const updatedGuide = await getGuideById(guideId);
     return NextResponse.json({ guide: updatedGuide });
   } catch (error) {
     console.error('Error saving recommendation:', error);

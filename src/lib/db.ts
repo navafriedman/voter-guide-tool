@@ -1,37 +1,53 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import { createClient, type Client } from '@libsql/client';
 
-// Database file location
-const DB_PATH = path.join(process.cwd(), 'data', 'voter-guide.db');
+// Singleton database client
+let client: Client | null = null;
+let initialized = false;
 
-// Singleton database instance
-let db: Database.Database | null = null;
+export function getDb(): Client {
+  if (!client) {
+    // Use Turso cloud database if configured, otherwise use local file
+    const url = process.env.TURSO_DATABASE_URL;
+    const authToken = process.env.TURSO_AUTH_TOKEN;
 
-export function getDb(): Database.Database {
-  if (!db) {
-    // Ensure data directory exists
-    const fs = require('fs');
-    const dataDir = path.dirname(DB_PATH);
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
+    if (url && authToken) {
+      // Production: Use Turso cloud database
+      client = createClient({
+        url,
+        authToken,
+      });
+    } else {
+      // Development: Use local SQLite file
+      const path = require('path');
+      const fs = require('fs');
+      const dbPath = path.join(process.cwd(), 'data', 'voter-guide.db');
+      const dataDir = path.dirname(dbPath);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      client = createClient({
+        url: `file:${dbPath}`,
+      });
     }
-
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    initializeSchema(db);
   }
-  return db;
+  return client;
 }
 
-function initializeSchema(db: Database.Database) {
-  // Voter Guides table
-  db.exec(`
+export async function initializeDb(): Promise<void> {
+  if (initialized) return;
+
+  const db = getDb();
+
+  // Voter Guides table (with all columns including new ones)
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS voter_guides (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       author_name TEXT NOT NULL,
       author_photo TEXT,
       author_bio TEXT,
+      banner_photo TEXT,
+      ballot_id TEXT,
       ballot_name TEXT,
       ballot_location TEXT,
       is_published INTEGER DEFAULT 0,
@@ -42,7 +58,7 @@ function initializeSchema(db: Database.Database) {
   `);
 
   // Recommendations table
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS recommendations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       guide_id TEXT NOT NULL,
@@ -58,7 +74,7 @@ function initializeSchema(db: Database.Database) {
   `);
 
   // Skipped races table
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS skipped_races (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       guide_id TEXT NOT NULL,
@@ -70,7 +86,7 @@ function initializeSchema(db: Database.Database) {
   `);
 
   // Skipped candidates table
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS skipped_candidates (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       guide_id TEXT NOT NULL,
@@ -83,7 +99,7 @@ function initializeSchema(db: Database.Database) {
   `);
 
   // Ballot data table (stores imported CSV data)
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS ballot_data (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -95,7 +111,7 @@ function initializeSchema(db: Database.Database) {
   `);
 
   // User events table for tracking
-  db.exec(`
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS user_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_type TEXT NOT NULL,
@@ -111,34 +127,33 @@ function initializeSchema(db: Database.Database) {
   `);
 
   // Create indexes for faster queries
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_recommendations_guide ON recommendations(guide_id);
-    CREATE INDEX IF NOT EXISTS idx_skipped_races_guide ON skipped_races(guide_id);
-    CREATE INDEX IF NOT EXISTS idx_skipped_candidates_guide ON skipped_candidates(guide_id);
-    CREATE INDEX IF NOT EXISTS idx_user_events_guide ON user_events(guide_id);
-    CREATE INDEX IF NOT EXISTS idx_user_events_type ON user_events(event_type);
-    CREATE INDEX IF NOT EXISTS idx_user_events_created ON user_events(created_at);
-  `);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_recommendations_guide ON recommendations(guide_id)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_skipped_races_guide ON skipped_races(guide_id)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_skipped_candidates_guide ON skipped_candidates(guide_id)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_user_events_guide ON user_events(guide_id)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_user_events_type ON user_events(event_type)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_user_events_created ON user_events(created_at)`);
 
-  // Add ballot_id column if it doesn't exist (for linking guides to ballots)
+  // Add missing columns to existing tables (for migrations)
   try {
-    db.exec(`ALTER TABLE voter_guides ADD COLUMN ballot_id TEXT`);
+    await db.execute(`ALTER TABLE voter_guides ADD COLUMN ballot_id TEXT`);
+  } catch {
+    // Column already exists, ignore
+  }
+  try {
+    await db.execute(`ALTER TABLE voter_guides ADD COLUMN banner_photo TEXT`);
   } catch {
     // Column already exists, ignore
   }
 
-  // Add banner_photo column if it doesn't exist
-  try {
-    db.exec(`ALTER TABLE voter_guides ADD COLUMN banner_photo TEXT`);
-  } catch {
-    // Column already exists, ignore
-  }
+  initialized = true;
 }
 
 // Helper to close the database (for testing)
 export function closeDb() {
-  if (db) {
-    db.close();
-    db = null;
+  if (client) {
+    client.close();
+    client = null;
+    initialized = false;
   }
 }

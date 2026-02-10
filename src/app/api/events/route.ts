@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       offset: searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : 0,
     };
 
-    const result = getEvents(options);
+    const result = await getEvents(options);
 
     return NextResponse.json({
       events: result.events.map(e => ({
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    trackEvent({
+    await trackEvent({
       eventType: body.eventType,
       guideId: body.guideId,
       raceId: body.raceId,

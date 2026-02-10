@@ -18,7 +18,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { guideId } = await params;
     const body = await request.json();
 
-    const guide = getGuideById(guideId);
+    const guide = await getGuideById(guideId);
     if (!guide) {
       return NextResponse.json(
         { error: 'Guide not found' },
@@ -30,12 +30,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (type === 'race') {
       if (skip) {
-        addSkippedRace(guideId, raceId);
+        await addSkippedRace(guideId, raceId);
       } else {
-        removeSkippedRace(guideId, raceId);
+        await removeSkippedRace(guideId, raceId);
       }
 
-      trackEvent({
+      await trackEvent({
         eventType: skip ? 'race_skipped' : 'race_unskipped',
         guideId,
         raceId,
@@ -44,12 +44,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       });
     } else if (type === 'candidate') {
       if (skip) {
-        addSkippedCandidate(guideId, raceId, candidateId);
+        await addSkippedCandidate(guideId, raceId, candidateId);
       } else {
-        removeSkippedCandidate(guideId, raceId, candidateId);
+        await removeSkippedCandidate(guideId, raceId, candidateId);
       }
 
-      trackEvent({
+      await trackEvent({
         eventType: skip ? 'candidate_skipped' : 'candidate_unskipped',
         guideId,
         raceId,
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Return updated guide
-    const updatedGuide = getGuideById(guideId);
+    const updatedGuide = await getGuideById(guideId);
     return NextResponse.json({ guide: updatedGuide });
   } catch (error) {
     console.error('Error updating skip status:', error);

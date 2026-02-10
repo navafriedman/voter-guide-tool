@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 // GET /api/guides - List all guides
 export async function GET() {
   try {
-    const guides = getAllGuides();
+    const guides = await getAllGuides();
     return NextResponse.json({ guides });
   } catch (error) {
     console.error('Error fetching guides:', error);
@@ -29,6 +29,8 @@ export async function POST(request: NextRequest) {
       authorName: body.authorName || 'Anonymous',
       authorPhoto: body.authorPhoto,
       authorBio: body.authorBio,
+      bannerPhoto: body.bannerPhoto,
+      ballotId: body.ballotId,
       ballotName: body.ballotName,
       ballotLocation: body.ballotLocation,
       isPublished: body.isPublished || false,
@@ -40,10 +42,10 @@ export async function POST(request: NextRequest) {
       skippedCandidates: body.skippedCandidates || [],
     };
 
-    const created = createGuide(guide);
+    const created = await createGuide(guide);
 
     // Track event
-    trackEvent({
+    await trackEvent({
       eventType: 'guide_created',
       guideId: created.id,
       userAgent: request.headers.get('user-agent') || undefined,

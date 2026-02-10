@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const ballot = getBallotData(id);
+    const ballot = await getBallotData(id);
     if (!ballot) {
       return NextResponse.json(
         { error: 'Ballot not found' },
@@ -46,10 +46,10 @@ export async function POST(request: NextRequest) {
       races: body.races || [],
     };
 
-    const saved = saveBallotData(ballot);
+    const saved = await saveBallotData(ballot);
 
     // Track event
-    trackEvent({
+    await trackEvent({
       eventType: 'ballot_imported',
       metadata: {
         ballotId: saved.id,

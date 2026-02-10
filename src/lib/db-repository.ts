@@ -1,268 +1,298 @@
-import { getDb } from './db';
+import { getDb, initializeDb } from './db';
 import type { VoterGuide, BallotData, CandidateRecommendation, SkippedCandidate, RecommendationStatus } from '@/types';
 
 // ============================================
 // VOTER GUIDES
 // ============================================
 
-export function getAllGuides(): VoterGuide[] {
+export async function getAllGuides(): Promise<VoterGuide[]> {
+  await initializeDb();
   const db = getDb();
-  const rows = db.prepare(`
+  const result = await db.execute(`
     SELECT * FROM voter_guides ORDER BY updated_at DESC
-  `).all() as DbGuideRow[];
+  `);
 
-  return rows.map(rowToGuide);
+  const guides: VoterGuide[] = [];
+  for (const row of result.rows) {
+    guides.push(await rowToGuide(row as unknown as DbGuideRow));
+  }
+  return guides;
 }
 
-export function getGuideById(id: string): VoterGuide | null {
+export async function getGuideById(id: string): Promise<VoterGuide | null> {
+  await initializeDb();
   const db = getDb();
-  const row = db.prepare(`
-    SELECT * FROM voter_guides WHERE id = ?
-  `).get(id) as DbGuideRow | undefined;
+  const result = await db.execute({
+    sql: `SELECT * FROM voter_guides WHERE id = ?`,
+    args: [id],
+  });
 
-  if (!row) return null;
-  return rowToGuide(row);
+  if (result.rows.length === 0) return null;
+  return rowToGuide(result.rows[0] as unknown as DbGuideRow);
 }
 
-export function createGuide(guide: VoterGuide): VoterGuide {
+export async function createGuide(guide: VoterGuide): Promise<VoterGuide> {
+  await initializeDb();
   const db = getDb();
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO voter_guides (
-      id, name, author_name, author_photo, author_bio, banner_photo,
-      ballot_id, ballot_name, ballot_location, is_published, social_links,
-      created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    guide.id,
-    guide.name,
-    guide.authorName,
-    guide.authorPhoto || null,
-    guide.authorBio || null,
-    guide.bannerPhoto || null,
-    guide.ballotId || null,
-    guide.ballotName || null,
-    guide.ballotLocation || null,
-    guide.isPublished ? 1 : 0,
-    guide.socialLinks ? JSON.stringify(guide.socialLinks) : null,
-    guide.createdAt || now,
-    now
-  );
+  await db.execute({
+    sql: `
+      INSERT INTO voter_guides (
+        id, name, author_name, author_photo, author_bio, banner_photo,
+        ballot_id, ballot_name, ballot_location, is_published, social_links,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      guide.id,
+      guide.name,
+      guide.authorName,
+      guide.authorPhoto || null,
+      guide.authorBio || null,
+      guide.bannerPhoto || null,
+      guide.ballotId || null,
+      guide.ballotName || null,
+      guide.ballotLocation || null,
+      guide.isPublished ? 1 : 0,
+      guide.socialLinks ? JSON.stringify(guide.socialLinks) : null,
+      guide.createdAt || now,
+      now,
+    ],
+  });
 
   // Save recommendations if any
   if (guide.recommendations?.length) {
     for (const rec of guide.recommendations) {
-      saveRecommendation(guide.id, rec);
+      await saveRecommendation(guide.id, rec);
     }
   }
 
   // Save skipped races if any
   if (guide.skippedRaces?.length) {
     for (const raceId of guide.skippedRaces) {
-      addSkippedRace(guide.id, raceId);
+      await addSkippedRace(guide.id, raceId);
     }
   }
 
   // Save skipped candidates if any
   if (guide.skippedCandidates?.length) {
     for (const sc of guide.skippedCandidates) {
-      addSkippedCandidate(guide.id, sc.raceId, sc.candidateId);
+      await addSkippedCandidate(guide.id, sc.raceId, sc.candidateId);
     }
   }
 
-  return getGuideById(guide.id)!;
+  return (await getGuideById(guide.id))!;
 }
 
-export function updateGuide(guide: VoterGuide): VoterGuide {
+export async function updateGuide(guide: VoterGuide): Promise<VoterGuide> {
+  await initializeDb();
   const db = getDb();
   const now = new Date().toISOString();
 
-  db.prepare(`
-    UPDATE voter_guides SET
-      name = ?,
-      author_name = ?,
-      author_photo = ?,
-      author_bio = ?,
-      banner_photo = ?,
-      ballot_id = ?,
-      ballot_name = ?,
-      ballot_location = ?,
-      is_published = ?,
-      social_links = ?,
-      updated_at = ?
-    WHERE id = ?
-  `).run(
-    guide.name,
-    guide.authorName,
-    guide.authorPhoto || null,
-    guide.authorBio || null,
-    guide.bannerPhoto || null,
-    guide.ballotId || null,
-    guide.ballotName || null,
-    guide.ballotLocation || null,
-    guide.isPublished ? 1 : 0,
-    guide.socialLinks ? JSON.stringify(guide.socialLinks) : null,
-    now,
-    guide.id
-  );
+  await db.execute({
+    sql: `
+      UPDATE voter_guides SET
+        name = ?,
+        author_name = ?,
+        author_photo = ?,
+        author_bio = ?,
+        banner_photo = ?,
+        ballot_id = ?,
+        ballot_name = ?,
+        ballot_location = ?,
+        is_published = ?,
+        social_links = ?,
+        updated_at = ?
+      WHERE id = ?
+    `,
+    args: [
+      guide.name,
+      guide.authorName,
+      guide.authorPhoto || null,
+      guide.authorBio || null,
+      guide.bannerPhoto || null,
+      guide.ballotId || null,
+      guide.ballotName || null,
+      guide.ballotLocation || null,
+      guide.isPublished ? 1 : 0,
+      guide.socialLinks ? JSON.stringify(guide.socialLinks) : null,
+      now,
+      guide.id,
+    ],
+  });
 
-  return getGuideById(guide.id)!;
+  return (await getGuideById(guide.id))!;
 }
 
-export function deleteGuide(id: string): boolean {
+export async function deleteGuide(id: string): Promise<boolean> {
+  await initializeDb();
   const db = getDb();
-  const result = db.prepare('DELETE FROM voter_guides WHERE id = ?').run(id);
-  return result.changes > 0;
+  const result = await db.execute({
+    sql: 'DELETE FROM voter_guides WHERE id = ?',
+    args: [id],
+  });
+  return result.rowsAffected > 0;
 }
 
 // ============================================
 // RECOMMENDATIONS
 // ============================================
 
-export function getRecommendations(guideId: string): CandidateRecommendation[] {
+export async function getRecommendations(guideId: string): Promise<CandidateRecommendation[]> {
+  await initializeDb();
   const db = getDb();
-  const rows = db.prepare(`
-    SELECT race_id, candidate_id, status, reason
-    FROM recommendations WHERE guide_id = ?
-  `).all(guideId) as DbRecommendationRow[];
+  const result = await db.execute({
+    sql: `SELECT race_id, candidate_id, status, reason FROM recommendations WHERE guide_id = ?`,
+    args: [guideId],
+  });
 
-  return rows.map(row => ({
-    raceId: row.race_id,
-    candidateId: row.candidate_id,
+  return result.rows.map(row => ({
+    raceId: row.race_id as string,
+    candidateId: row.candidate_id as string,
     status: row.status as RecommendationStatus,
-    reason: row.reason || undefined,
+    reason: (row.reason as string) || undefined,
   }));
 }
 
-export function saveRecommendation(guideId: string, rec: CandidateRecommendation): void {
+export async function saveRecommendation(guideId: string, rec: CandidateRecommendation): Promise<void> {
+  await initializeDb();
   const db = getDb();
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO recommendations (guide_id, race_id, candidate_id, status, reason, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(guide_id, race_id, candidate_id)
-    DO UPDATE SET status = excluded.status, reason = excluded.reason, updated_at = excluded.updated_at
-  `).run(
-    guideId,
-    rec.raceId,
-    rec.candidateId,
-    rec.status,
-    rec.reason || null,
-    now,
-    now
-  );
+  await db.execute({
+    sql: `
+      INSERT INTO recommendations (guide_id, race_id, candidate_id, status, reason, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(guide_id, race_id, candidate_id)
+      DO UPDATE SET status = excluded.status, reason = excluded.reason, updated_at = excluded.updated_at
+    `,
+    args: [guideId, rec.raceId, rec.candidateId, rec.status, rec.reason || null, now, now],
+  });
 
   // Update guide's updated_at
-  db.prepare('UPDATE voter_guides SET updated_at = ? WHERE id = ?').run(now, guideId);
+  await db.execute({
+    sql: 'UPDATE voter_guides SET updated_at = ? WHERE id = ?',
+    args: [now, guideId],
+  });
 }
 
-export function deleteRecommendation(guideId: string, raceId: string, candidateId: string): void {
+export async function deleteRecommendation(guideId: string, raceId: string, candidateId: string): Promise<void> {
+  await initializeDb();
   const db = getDb();
-  db.prepare(`
-    DELETE FROM recommendations
-    WHERE guide_id = ? AND race_id = ? AND candidate_id = ?
-  `).run(guideId, raceId, candidateId);
+  await db.execute({
+    sql: `DELETE FROM recommendations WHERE guide_id = ? AND race_id = ? AND candidate_id = ?`,
+    args: [guideId, raceId, candidateId],
+  });
 }
 
 // ============================================
 // SKIPPED ITEMS
 // ============================================
 
-export function getSkippedRaces(guideId: string): string[] {
+export async function getSkippedRaces(guideId: string): Promise<string[]> {
+  await initializeDb();
   const db = getDb();
-  const rows = db.prepare(`
-    SELECT race_id FROM skipped_races WHERE guide_id = ?
-  `).all(guideId) as { race_id: string }[];
+  const result = await db.execute({
+    sql: `SELECT race_id FROM skipped_races WHERE guide_id = ?`,
+    args: [guideId],
+  });
 
-  return rows.map(row => row.race_id);
+  return result.rows.map(row => row.race_id as string);
 }
 
-export function addSkippedRace(guideId: string, raceId: string): void {
+export async function addSkippedRace(guideId: string, raceId: string): Promise<void> {
+  await initializeDb();
   const db = getDb();
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT OR IGNORE INTO skipped_races (guide_id, race_id, created_at)
-    VALUES (?, ?, ?)
-  `).run(guideId, raceId, now);
+  await db.execute({
+    sql: `INSERT OR IGNORE INTO skipped_races (guide_id, race_id, created_at) VALUES (?, ?, ?)`,
+    args: [guideId, raceId, now],
+  });
 }
 
-export function removeSkippedRace(guideId: string, raceId: string): void {
+export async function removeSkippedRace(guideId: string, raceId: string): Promise<void> {
+  await initializeDb();
   const db = getDb();
-  db.prepare(`
-    DELETE FROM skipped_races WHERE guide_id = ? AND race_id = ?
-  `).run(guideId, raceId);
+  await db.execute({
+    sql: `DELETE FROM skipped_races WHERE guide_id = ? AND race_id = ?`,
+    args: [guideId, raceId],
+  });
 }
 
-export function getSkippedCandidates(guideId: string): SkippedCandidate[] {
+export async function getSkippedCandidates(guideId: string): Promise<SkippedCandidate[]> {
+  await initializeDb();
   const db = getDb();
-  const rows = db.prepare(`
-    SELECT race_id, candidate_id FROM skipped_candidates WHERE guide_id = ?
-  `).all(guideId) as { race_id: string; candidate_id: string }[];
+  const result = await db.execute({
+    sql: `SELECT race_id, candidate_id FROM skipped_candidates WHERE guide_id = ?`,
+    args: [guideId],
+  });
 
-  return rows.map(row => ({
-    raceId: row.race_id,
-    candidateId: row.candidate_id,
+  return result.rows.map(row => ({
+    raceId: row.race_id as string,
+    candidateId: row.candidate_id as string,
   }));
 }
 
-export function addSkippedCandidate(guideId: string, raceId: string, candidateId: string): void {
+export async function addSkippedCandidate(guideId: string, raceId: string, candidateId: string): Promise<void> {
+  await initializeDb();
   const db = getDb();
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT OR IGNORE INTO skipped_candidates (guide_id, race_id, candidate_id, created_at)
-    VALUES (?, ?, ?, ?)
-  `).run(guideId, raceId, candidateId, now);
+  await db.execute({
+    sql: `INSERT OR IGNORE INTO skipped_candidates (guide_id, race_id, candidate_id, created_at) VALUES (?, ?, ?, ?)`,
+    args: [guideId, raceId, candidateId, now],
+  });
 }
 
-export function removeSkippedCandidate(guideId: string, raceId: string, candidateId: string): void {
+export async function removeSkippedCandidate(guideId: string, raceId: string, candidateId: string): Promise<void> {
+  await initializeDb();
   const db = getDb();
-  db.prepare(`
-    DELETE FROM skipped_candidates WHERE guide_id = ? AND race_id = ? AND candidate_id = ?
-  `).run(guideId, raceId, candidateId);
+  await db.execute({
+    sql: `DELETE FROM skipped_candidates WHERE guide_id = ? AND race_id = ? AND candidate_id = ?`,
+    args: [guideId, raceId, candidateId],
+  });
 }
 
 // ============================================
 // BALLOT DATA
 // ============================================
 
-export function getBallotData(id: string): BallotData | null {
+export async function getBallotData(id: string): Promise<BallotData | null> {
+  await initializeDb();
   const db = getDb();
-  const row = db.prepare(`
-    SELECT * FROM ballot_data WHERE id = ?
-  `).get(id) as DbBallotRow | undefined;
+  const result = await db.execute({
+    sql: `SELECT * FROM ballot_data WHERE id = ?`,
+    args: [id],
+  });
 
-  if (!row) return null;
+  if (result.rows.length === 0) return null;
+  const row = result.rows[0];
   return {
-    id: row.id,
-    name: row.name,
-    location: row.location || undefined,
-    races: JSON.parse(row.data),
+    id: row.id as string,
+    name: row.name as string,
+    location: (row.location as string) || undefined,
+    races: JSON.parse(row.data as string),
   };
 }
 
-export function saveBallotData(ballot: BallotData): BallotData {
+export async function saveBallotData(ballot: BallotData): Promise<BallotData> {
+  await initializeDb();
   const db = getDb();
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO ballot_data (id, name, location, data, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id)
-    DO UPDATE SET name = excluded.name, location = excluded.location, data = excluded.data, updated_at = excluded.updated_at
-  `).run(
-    ballot.id,
-    ballot.name,
-    ballot.location || null,
-    JSON.stringify(ballot.races),
-    now,
-    now
-  );
+  await db.execute({
+    sql: `
+      INSERT INTO ballot_data (id, name, location, data, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id)
+      DO UPDATE SET name = excluded.name, location = excluded.location, data = excluded.data, updated_at = excluded.updated_at
+    `,
+    args: [ballot.id, ballot.name, ballot.location || null, JSON.stringify(ballot.races), now, now],
+  });
 
-  return getBallotData(ballot.id)!;
+  return (await getBallotData(ballot.id))!;
 }
 
 // ============================================
@@ -280,39 +310,44 @@ export interface UserEvent {
   ipAddress?: string;
 }
 
-export function trackEvent(event: UserEvent): void {
+export async function trackEvent(event: UserEvent): Promise<void> {
+  await initializeDb();
   const db = getDb();
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO user_events (
-      event_type, guide_id, race_id, candidate_id,
-      metadata, session_id, user_agent, ip_address, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    event.eventType,
-    event.guideId || null,
-    event.raceId || null,
-    event.candidateId || null,
-    event.metadata ? JSON.stringify(event.metadata) : null,
-    event.sessionId || null,
-    event.userAgent || null,
-    event.ipAddress || null,
-    now
-  );
+  await db.execute({
+    sql: `
+      INSERT INTO user_events (
+        event_type, guide_id, race_id, candidate_id,
+        metadata, session_id, user_agent, ip_address, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    args: [
+      event.eventType,
+      event.guideId || null,
+      event.raceId || null,
+      event.candidateId || null,
+      event.metadata ? JSON.stringify(event.metadata) : null,
+      event.sessionId || null,
+      event.userAgent || null,
+      event.ipAddress || null,
+      now,
+    ],
+  });
 }
 
-export function getEvents(options: {
+export async function getEvents(options: {
   eventType?: string;
   guideId?: string;
   startDate?: string;
   endDate?: string;
   limit?: number;
   offset?: number;
-} = {}): { events: DbEventRow[]; total: number } {
+} = {}): Promise<{ events: DbEventRow[]; total: number }> {
+  await initializeDb();
   const db = getDb();
   const conditions: string[] = [];
-  const params: unknown[] = [];
+  const params: (string | number)[] = [];
 
   if (options.eventType) {
     conditions.push('event_type = ?');
@@ -334,21 +369,35 @@ export function getEvents(options: {
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   // Get total count
-  const countRow = db.prepare(`
-    SELECT COUNT(*) as count FROM user_events ${whereClause}
-  `).get(...params) as { count: number };
+  const countResult = await db.execute({
+    sql: `SELECT COUNT(*) as count FROM user_events ${whereClause}`,
+    args: params,
+  });
+  const total = Number(countResult.rows[0].count);
 
   // Get events with pagination
   const limit = options.limit || 100;
   const offset = options.offset || 0;
 
-  const events = db.prepare(`
-    SELECT * FROM user_events ${whereClause}
-    ORDER BY created_at DESC
-    LIMIT ? OFFSET ?
-  `).all(...params, limit, offset) as DbEventRow[];
+  const eventsResult = await db.execute({
+    sql: `SELECT * FROM user_events ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+    args: [...params, limit, offset],
+  });
 
-  return { events, total: countRow.count };
+  const events = eventsResult.rows.map(row => ({
+    id: row.id as number,
+    event_type: row.event_type as string,
+    guide_id: row.guide_id as string | null,
+    race_id: row.race_id as string | null,
+    candidate_id: row.candidate_id as string | null,
+    metadata: row.metadata as string | null,
+    session_id: row.session_id as string | null,
+    user_agent: row.user_agent as string | null,
+    ip_address: row.ip_address as string | null,
+    created_at: row.created_at as string,
+  }));
+
+  return { events, total };
 }
 
 // ============================================
@@ -371,20 +420,6 @@ interface DbGuideRow {
   updated_at: string;
 }
 
-interface DbRecommendationRow {
-  race_id: string;
-  candidate_id: string;
-  status: string;
-  reason: string | null;
-}
-
-interface DbBallotRow {
-  id: string;
-  name: string;
-  location: string | null;
-  data: string;
-}
-
 export interface DbEventRow {
   id: number;
   event_type: string;
@@ -398,7 +433,7 @@ export interface DbEventRow {
   created_at: string;
 }
 
-function rowToGuide(row: DbGuideRow): VoterGuide {
+async function rowToGuide(row: DbGuideRow): Promise<VoterGuide> {
   const guideId = row.id;
 
   return {
@@ -415,8 +450,8 @@ function rowToGuide(row: DbGuideRow): VoterGuide {
     socialLinks: row.social_links ? JSON.parse(row.social_links) : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    recommendations: getRecommendations(guideId),
-    skippedRaces: getSkippedRaces(guideId),
-    skippedCandidates: getSkippedCandidates(guideId),
+    recommendations: await getRecommendations(guideId),
+    skippedRaces: await getSkippedRaces(guideId),
+    skippedCandidates: await getSkippedCandidates(guideId),
   };
 }
