@@ -107,10 +107,12 @@ export function CandidateCard({
 
   const handleStatusChange = (newStatus: RecommendationStatus) => {
     if (!onRecommendationChange) return;
+    // Toggle off if clicking the same status
+    const finalStatus = newStatus === status ? 'none' : newStatus;
     onRecommendationChange({
       candidateId: candidate.id,
       raceId,
-      status: newStatus,
+      status: finalStatus,
       reason,
     });
   };
