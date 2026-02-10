@@ -5,6 +5,7 @@ const STATUS_LABELS: Record<RecommendationStatus, string> = {
   yes: 'Yes',
   no: 'No',
   strong_no: 'Strong No',
+  no_recommendation: 'No Recommendation',
   none: '',
 };
 

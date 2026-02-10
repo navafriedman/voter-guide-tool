@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Save, Eye, Share2, Upload, User, RotateCcw, SkipForward, Filter, Download } from 'lucide-react';
+import { Save, Eye, Share2, Upload, User, RotateCcw, SkipForward, Filter, Download, Image } from 'lucide-react';
 import { RaceSection } from './RaceSection';
 import type { VoterGuide, BallotData, CandidateRecommendation } from '@/types';
 import { saveGuide, updateRecommendation, skipRace, unskipRace, skipCandidate, unskipCandidate, isRaceSkipped, isCandidateSkipped } from '@/lib/storage';
@@ -20,6 +20,7 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [partyFilter, setPartyFilter] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLocalGuide(guide);
@@ -141,6 +142,19 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
     reader.onload = (event) => {
       const base64 = event.target?.result as string;
       handleGuideInfoChange('authorPhoto', base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Convert to base64 for local storage
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      handleGuideInfoChange('bannerPhoto', base64);
     };
     reader.readAsDataURL(file);
   };
@@ -285,6 +299,55 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
                     Remove photo
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Banner Photo (optional)
+            </label>
+            <div className="space-y-3">
+              {localGuide.bannerPhoto ? (
+                <div className="relative">
+                  <img
+                    src={localGuide.bannerPhoto}
+                    alt="Banner"
+                    className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                  />
+                  <button
+                    onClick={() => handleGuideInfoChange('bannerPhoto', '')}
+                    className="absolute top-2 right-2 px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="w-full h-32 rounded-lg bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
+                  <div className="text-center">
+                    <Image className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <span className="text-sm text-gray-500">No banner image</span>
+                  </div>
+                </div>
+              )}
+              <div>
+                <input
+                  ref={bannerInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBannerUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => bannerInputRef.current?.click()}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  {localGuide.bannerPhoto ? 'Change Banner' : 'Upload Banner'}
+                </button>
+                <p className="text-xs text-gray-500 mt-1">
+                  Recommended size: 1200x400 pixels. This will appear at the top of your public guide.
+                </p>
               </div>
             </div>
           </div>

@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { ArrowLeft, Vote, AlertCircle } from 'lucide-react';
 import { GuideEditor } from '@/components/GuideEditor';
 import type { VoterGuide, BallotData } from '@/types';
-import { createNewGuide, getBallotData } from '@/lib/storage';
+import { createNewGuide, getBallotData, saveGuide } from '@/lib/storage';
 import { useHydrated } from '@/lib/hooks';
-import { createGuideApi, trackWithSession } from '@/lib/api-client';
+import { createGuideApi, saveBallotApi, trackWithSession } from '@/lib/api-client';
 
 export default function CreateGuidePage() {
   const hydrated = useHydrated();
@@ -22,15 +22,21 @@ export default function CreateGuidePage() {
   }, [hydrated]);
 
   const handleCreateGuide = async () => {
-    if (!guideName.trim() || !authorName.trim()) return;
+    if (!guideName.trim() || !authorName.trim() || !ballot) return;
 
     // Create in localStorage first (instant feedback)
-    const newGuide = createNewGuide(guideName.trim(), authorName.trim());
+    let newGuide = createNewGuide(guideName.trim(), authorName.trim());
+    // Link the ballot ID to the guide and save again
+    newGuide.ballotId = ballot.id;
+    newGuide = saveGuide(newGuide);
     setGuide(newGuide);
     setStep('edit');
 
     // Sync to database in background
     try {
+      // Save ballot to database first
+      await saveBallotApi(ballot);
+      // Then create guide with ballot link
       await createGuideApi(newGuide);
       trackWithSession('guide_created', { guideId: newGuide.id });
     } catch (error) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Star, Check, X, Ban, User, Globe, Twitter, Facebook, Instagram, ChevronDown, ChevronUp, SkipForward, RotateCcw, MessageSquare } from 'lucide-react';
+import { Star, Check, X, Ban, User, Globe, Twitter, Facebook, Instagram, ChevronDown, ChevronUp, SkipForward, RotateCcw, MessageSquare, HelpCircle } from 'lucide-react';
 import type { Candidate, CandidateRecommendation, RecommendationStatus } from '@/types';
 
 interface CandidateCardProps {
@@ -19,6 +19,7 @@ const statusColors: Record<RecommendationStatus, string> = {
   yes: 'border-green-500 bg-green-50',
   no: 'border-orange-500 bg-orange-50',
   strong_no: 'border-red-500 bg-red-50',
+  no_recommendation: 'border-slate-400 bg-slate-50',
   none: 'border-gray-200 bg-white',
 };
 
@@ -27,6 +28,7 @@ const statusLabels: Record<RecommendationStatus, string> = {
   yes: 'Yes',
   no: 'No',
   strong_no: 'Strong No',
+  no_recommendation: 'No Recommendation',
   none: 'No Designation',
 };
 
@@ -35,6 +37,7 @@ const statusButtonStyles: Record<RecommendationStatus, { active: string; inactiv
   yes: { active: 'bg-green-500 text-white', inactive: 'bg-gray-100 text-gray-600 hover:bg-green-100' },
   no: { active: 'bg-orange-500 text-white', inactive: 'bg-gray-100 text-gray-600 hover:bg-orange-100' },
   strong_no: { active: 'bg-red-500 text-white', inactive: 'bg-gray-100 text-gray-600 hover:bg-red-100' },
+  no_recommendation: { active: 'bg-slate-500 text-white', inactive: 'bg-gray-100 text-gray-600 hover:bg-slate-100' },
   none: { active: 'bg-gray-200 text-gray-600', inactive: 'bg-gray-100 text-gray-600 hover:bg-gray-200' },
 };
 
@@ -48,6 +51,8 @@ const StatusIcon = ({ status, className }: { status: RecommendationStatus; class
       return <X className={className} />;
     case 'strong_no':
       return <Ban className={className} />;
+    case 'no_recommendation':
+      return <HelpCircle className={className} />;
     default:
       return null;
   }
@@ -58,6 +63,7 @@ const statusIconColors: Record<RecommendationStatus, string> = {
   yes: 'text-green-500',
   no: 'text-orange-500',
   strong_no: 'text-red-500',
+  no_recommendation: 'text-slate-500',
   none: '',
 };
 
@@ -261,6 +267,15 @@ export function CandidateCard({
                 >
                   <Ban className="w-4 h-4" />
                   Strong No
+                </button>
+                <button
+                  onClick={() => handleStatusChange('no_recommendation')}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    status === 'no_recommendation' ? statusButtonStyles.no_recommendation.active : statusButtonStyles.no_recommendation.inactive
+                  }`}
+                >
+                  <HelpCircle className="w-4 h-4" />
+                  No Recommendation
                 </button>
                 {status !== 'none' && (
                   <button

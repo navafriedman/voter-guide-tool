@@ -1,4 +1,4 @@
-export type RecommendationStatus = 'top_pick' | 'yes' | 'no' | 'strong_no' | 'none';
+export type RecommendationStatus = 'top_pick' | 'yes' | 'no' | 'strong_no' | 'no_recommendation' | 'none';
 
 export interface Candidate {
   id: string;
@@ -39,6 +39,8 @@ export interface VoterGuide {
   authorName: string;
   authorPhoto?: string;
   authorBio?: string;
+  bannerPhoto?: string;
+  ballotId?: string;
   ballotName?: string;
   ballotLocation?: string;
   createdAt: string;

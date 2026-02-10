@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useMemo, use } from 'react';
+import { useState, useMemo, use, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Vote, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Vote, AlertCircle, Share2 } from 'lucide-react';
 import { GuideEditor } from '@/components/GuideEditor';
 import type { VoterGuide, BallotData } from '@/types';
-import { getGuideById, getBallotData } from '@/lib/storage';
+import { getGuideById, getBallotData, saveGuide, saveBallotData } from '@/lib/storage';
+import { fetchGuide, fetchBallot, trackWithSession } from '@/lib/api-client';
 import { useHydrated } from '@/lib/hooks';
 
 interface EditGuidePageProps {
@@ -16,28 +17,74 @@ export default function EditGuidePage({ params }: EditGuidePageProps) {
   const { guideId } = use(params);
   const hydrated = useHydrated();
   const [guideState, setGuideState] = useState<VoterGuide | null>(null);
+  const [ballotState, setBallotState] = useState<BallotData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadedFromDb, setLoadedFromDb] = useState(false);
 
-  const ballot = useMemo<BallotData | null>(() => {
-    if (!hydrated) return null;
-    return getBallotData();
-  }, [hydrated]);
-
-  const initialGuide = useMemo(() => {
+  // First try localStorage
+  const localGuide = useMemo(() => {
     if (!hydrated) return null;
     return getGuideById(guideId);
   }, [hydrated, guideId]);
 
-  const guide = guideState ?? initialGuide;
-  const notFound = hydrated && !initialGuide;
+  const localBallot = useMemo<BallotData | null>(() => {
+    if (!hydrated) return null;
+    return getBallotData();
+  }, [hydrated]);
+
+  // If not in localStorage, fetch from database
+  useEffect(() => {
+    async function loadFromDatabase() {
+      if (!hydrated || localGuide || isLoading || loadedFromDb) return;
+
+      setIsLoading(true);
+      try {
+        // Fetch guide from database
+        const dbGuide = await fetchGuide(guideId);
+        if (dbGuide) {
+          // Save to localStorage for future edits
+          saveGuide(dbGuide);
+          setGuideState(dbGuide);
+
+          // Track that this is a shared link access
+          trackWithSession('shared_link_accessed', { guideId: dbGuide.id });
+
+          // Also fetch the associated ballot if we have a ballotId
+          if (dbGuide.ballotId) {
+            const dbBallot = await fetchBallot(dbGuide.ballotId);
+            if (dbBallot) {
+              // Save ballot to localStorage
+              saveBallotData(dbBallot);
+              setBallotState(dbBallot);
+            }
+          }
+        }
+        setLoadedFromDb(true);
+      } catch (error) {
+        console.warn('Failed to load from database:', error);
+        setLoadedFromDb(true);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadFromDatabase();
+  }, [hydrated, localGuide, guideId, isLoading, loadedFromDb]);
+
+  const guide = guideState ?? localGuide;
+  const ballot = ballotState ?? localBallot;
+  const notFound = hydrated && !guide && loadedFromDb && !isLoading;
 
   const handleGuideUpdate = (updatedGuide: VoterGuide) => {
     setGuideState(updatedGuide);
   };
 
-  if (!hydrated) {
+  if (!hydrated || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">Loading...</div>
+        <div className="animate-pulse text-gray-400">
+          {isLoading ? 'Loading guide from server...' : 'Loading...'}
+        </div>
       </div>
     );
   }
@@ -47,21 +94,36 @@ export default function EditGuidePage({ params }: EditGuidePageProps) {
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="text-gray-400 hover:text-gray-600">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Vote className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  {guide ? `Edit: ${guide.name}` : 'Edit Voter Guide'}
-                </h1>
-                <p className="text-sm text-gray-500">Update your endorsements</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/" className="text-gray-400 hover:text-gray-600">
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <Vote className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">
+                    {guide ? `Edit: ${guide.name}` : 'Edit Voter Guide'}
+                  </h1>
+                  <p className="text-sm text-gray-500">Update your endorsements</p>
+                </div>
               </div>
             </div>
+            {guide && (
+              <button
+                onClick={() => {
+                  const editUrl = `${window.location.origin}/admin/edit/${guideId}`;
+                  navigator.clipboard.writeText(editUrl);
+                  alert('Edit link copied! Share this link with collaborators.');
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium"
+              >
+                <Share2 className="w-4 h-4" />
+                Copy Edit Link
+              </button>
+            )}
           </div>
         </div>
       </header>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { User, Globe, Star, Check, X, Ban, ChevronLeft, ChevronRight, Menu, ArrowLeft, UserCheck } from 'lucide-react';
+import { User, Globe, Star, Check, X, Ban, ChevronLeft, ChevronRight, Menu, ArrowLeft, UserCheck, HelpCircle } from 'lucide-react';
 import type { VoterGuide, BallotData, Race, Candidate, RecommendationStatus } from '@/types';
 
 interface PublicGuideViewProps {
@@ -33,6 +33,12 @@ const statusConfig: Record<RecommendationStatus, { label: string; bgColor: strin
     bgColor: 'bg-red-100',
     textColor: 'text-red-700',
     icon: <Ban className="w-3 h-3" />
+  },
+  no_recommendation: {
+    label: 'No recommendation',
+    bgColor: 'bg-slate-100',
+    textColor: 'text-slate-700',
+    icon: <HelpCircle className="w-3 h-3" />
   },
   none: {
     label: '',
@@ -167,7 +173,7 @@ function RacePublicSection({
   const sortedCandidates = [...race.candidates].sort((a, b) => {
     const recA = guide.recommendations.find(r => r.raceId === race.id && r.candidateId === a.id);
     const recB = guide.recommendations.find(r => r.raceId === race.id && r.candidateId === b.id);
-    const statusOrder: Record<RecommendationStatus, number> = { top_pick: 0, yes: 1, no: 2, strong_no: 3, none: 4 };
+    const statusOrder: Record<RecommendationStatus, number> = { top_pick: 0, yes: 1, no: 2, strong_no: 3, no_recommendation: 4, none: 5 };
     const orderA = statusOrder[recA?.status || 'none'];
     const orderB = statusOrder[recB?.status || 'none'];
     return orderA - orderB;
@@ -294,15 +300,23 @@ export function PublicGuideView({ guide, ballot }: PublicGuideViewProps) {
         {/* Hero Section */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
           <div className="md:flex">
-            {/* Hero Image Placeholder */}
-            <div className="md:w-1/3 bg-gradient-to-br from-teal-600 to-teal-800 p-8 flex items-center justify-center min-h-[200px]">
-              <div className="text-white text-center">
-                <p className="text-2xl font-bold leading-tight opacity-90">
-                  LIKE THE POWER<br />
-                  OF THE PEOPLE<br />
-                  &apos;CAUSE THE POWER
-                </p>
-              </div>
+            {/* Hero Image */}
+            <div className="md:w-1/3 bg-gradient-to-br from-teal-600 to-teal-800 flex items-center justify-center min-h-[200px] relative overflow-hidden">
+              {guide.bannerPhoto ? (
+                <img
+                  src={guide.bannerPhoto}
+                  alt="Banner"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : (
+                <div className="text-white text-center p-8">
+                  <p className="text-2xl font-bold leading-tight opacity-90">
+                    LIKE THE POWER<br />
+                    OF THE PEOPLE<br />
+                    &apos;CAUSE THE POWER
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Guide Info */}
