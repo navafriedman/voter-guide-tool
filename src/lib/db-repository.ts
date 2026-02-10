@@ -30,16 +30,18 @@ export function createGuide(guide: VoterGuide): VoterGuide {
 
   db.prepare(`
     INSERT INTO voter_guides (
-      id, name, author_name, author_photo, author_bio,
-      ballot_name, ballot_location, is_published, social_links,
+      id, name, author_name, author_photo, author_bio, banner_photo,
+      ballot_id, ballot_name, ballot_location, is_published, social_links,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     guide.id,
     guide.name,
     guide.authorName,
     guide.authorPhoto || null,
     guide.authorBio || null,
+    guide.bannerPhoto || null,
+    guide.ballotId || null,
     guide.ballotName || null,
     guide.ballotLocation || null,
     guide.isPublished ? 1 : 0,
@@ -82,6 +84,8 @@ export function updateGuide(guide: VoterGuide): VoterGuide {
       author_name = ?,
       author_photo = ?,
       author_bio = ?,
+      banner_photo = ?,
+      ballot_id = ?,
       ballot_name = ?,
       ballot_location = ?,
       is_published = ?,
@@ -93,6 +97,8 @@ export function updateGuide(guide: VoterGuide): VoterGuide {
     guide.authorName,
     guide.authorPhoto || null,
     guide.authorBio || null,
+    guide.bannerPhoto || null,
+    guide.ballotId || null,
     guide.ballotName || null,
     guide.ballotLocation || null,
     guide.isPublished ? 1 : 0,
@@ -355,6 +361,8 @@ interface DbGuideRow {
   author_name: string;
   author_photo: string | null;
   author_bio: string | null;
+  banner_photo: string | null;
+  ballot_id: string | null;
   ballot_name: string | null;
   ballot_location: string | null;
   is_published: number;
@@ -399,6 +407,8 @@ function rowToGuide(row: DbGuideRow): VoterGuide {
     authorName: row.author_name,
     authorPhoto: row.author_photo || undefined,
     authorBio: row.author_bio || undefined,
+    bannerPhoto: row.banner_photo || undefined,
+    ballotId: row.ballot_id || undefined,
     ballotName: row.ballot_name || undefined,
     ballotLocation: row.ballot_location || undefined,
     isPublished: row.is_published === 1,

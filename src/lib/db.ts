@@ -119,6 +119,20 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_user_events_type ON user_events(event_type);
     CREATE INDEX IF NOT EXISTS idx_user_events_created ON user_events(created_at);
   `);
+
+  // Add ballot_id column if it doesn't exist (for linking guides to ballots)
+  try {
+    db.exec(`ALTER TABLE voter_guides ADD COLUMN ballot_id TEXT`);
+  } catch {
+    // Column already exists, ignore
+  }
+
+  // Add banner_photo column if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE voter_guides ADD COLUMN banner_photo TEXT`);
+  } catch {
+    // Column already exists, ignore
+  }
 }
 
 // Helper to close the database (for testing)
