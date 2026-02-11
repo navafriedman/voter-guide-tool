@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, use, useEffect } from 'react';
+import { useState, use, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Vote, AlertCircle, Share2 } from 'lucide-react';
 import { GuideEditor } from '@/components/GuideEditor';
@@ -16,85 +16,76 @@ interface EditGuidePageProps {
 export default function EditGuidePage({ params }: EditGuidePageProps) {
   const { guideId } = use(params);
   const hydrated = useHydrated();
-  const [guideState, setGuideState] = useState<VoterGuide | null>(null);
-  const [ballotState, setBallotState] = useState<BallotData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadedFromDb, setLoadedFromDb] = useState(false);
+  const [guide, setGuide] = useState<VoterGuide | null>(null);
+  const [ballot, setBallot] = useState<BallotData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // First try localStorage
-  const localGuide = useMemo(() => {
-    if (!hydrated) return null;
-    return getGuideById(guideId);
-  }, [hydrated, guideId]);
-
-  const localBallot = useMemo<BallotData | null>(() => {
-    if (!hydrated) return null;
-    return getBallotData();
-  }, [hydrated]);
-
-  // Fetch from database - always try to get what we're missing
+  // Single effect to load everything
   useEffect(() => {
-    async function loadFromDatabase() {
-      if (!hydrated || isLoading || loadedFromDb) return;
+    if (!hydrated) return;
 
-      setIsLoading(true);
-      console.log('Starting load...', { hasLocalGuide: !!localGuide, hasLocalBallot: !!localBallot });
+    async function loadData() {
+      console.log('Loading data for guide:', guideId);
 
       try {
-        // Step 1: Get the guide (either local or from DB)
-        let currentGuide = localGuide;
+        // Step 1: Try to get guide from localStorage first, then DB
+        let currentGuide = getGuideById(guideId);
+        console.log('Local guide:', currentGuide?.name, 'ballotId:', currentGuide?.ballotId);
 
-        // Fetch guide if we don't have one OR if it's missing ballotId
+        // If no local guide or missing ballotId, fetch from DB
         if (!currentGuide || !currentGuide.ballotId) {
-          console.log('Fetching guide from database...', guideId);
+          console.log('Fetching guide from DB...');
           const dbGuide = await fetchGuide(guideId);
-          console.log('Fetched guide:', dbGuide?.name, 'ballotId:', dbGuide?.ballotId);
+          console.log('DB guide:', dbGuide?.name, 'ballotId:', dbGuide?.ballotId);
 
           if (dbGuide) {
             saveGuide(dbGuide);
-            setGuideState(dbGuide);
             currentGuide = dbGuide;
             trackWithSession('shared_link_accessed', { guideId: dbGuide.id });
           }
         }
 
-        // Step 2: Get the ballot if we don't have it locally
-        if (!localBallot && currentGuide?.ballotId) {
-          console.log('Fetching ballot from database...', currentGuide.ballotId);
+        if (currentGuide) {
+          setGuide(currentGuide);
+        }
+
+        // Step 2: Try to get ballot from localStorage first, then DB
+        let currentBallot = getBallotData();
+        console.log('Local ballot:', currentBallot?.name);
+
+        // If no local ballot and guide has ballotId, fetch from DB
+        if (!currentBallot && currentGuide?.ballotId) {
+          console.log('Fetching ballot from DB...', currentGuide.ballotId);
           const dbBallot = await fetchBallot(currentGuide.ballotId);
-          console.log('Fetched ballot:', dbBallot?.name, 'races:', dbBallot?.races?.length);
+          console.log('DB ballot:', dbBallot?.name, 'races:', dbBallot?.races?.length);
 
           if (dbBallot) {
             saveBallotData(dbBallot);
-            setBallotState(dbBallot);
-            console.log('Ballot state set!');
-          } else {
-            console.error('Ballot fetch returned null!');
+            currentBallot = dbBallot;
           }
-        } else {
-          console.log('Skipping ballot fetch:', { hasLocalBallot: !!localBallot, hasBallotId: !!currentGuide?.ballotId });
         }
 
-        setLoadedFromDb(true);
-      } catch (error) {
-        console.error('Failed to load from database:', error);
-        setLoadedFromDb(true);
+        if (currentBallot) {
+          setBallot(currentBallot);
+        }
+
+        console.log('Load complete:', { hasGuide: !!currentGuide, hasBallot: !!currentBallot });
+      } catch (err) {
+        console.error('Failed to load:', err);
+        setError('Failed to load guide');
       } finally {
         setIsLoading(false);
-        console.log('Load complete');
       }
     }
 
-    loadFromDatabase();
-  }, [hydrated, guideId, isLoading, loadedFromDb]); // Removed localGuide/localBallot from deps to prevent re-runs
-
-  const guide = guideState ?? localGuide;
-  const ballot = ballotState ?? localBallot;
-  const notFound = hydrated && !guide && loadedFromDb && !isLoading;
+    loadData();
+  }, [hydrated, guideId]);
 
   const handleGuideUpdate = (updatedGuide: VoterGuide) => {
-    setGuideState(updatedGuide);
+    setGuide(updatedGuide);
   };
+  const notFound = !isLoading && !guide && !error;
 
   if (!hydrated || isLoading) {
     return (
