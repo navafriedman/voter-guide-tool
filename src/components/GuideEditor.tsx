@@ -219,6 +219,19 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
       await updateGuideApi(guideToSave.id, guideToSave);
       console.log('Guide saved successfully');
 
+      // Sync all recommendations (in case some failed when guide wasn't in DB yet)
+      if (guideToSave.recommendations && guideToSave.recommendations.length > 0) {
+        console.log('Syncing recommendations...', guideToSave.recommendations.length);
+        for (const rec of guideToSave.recommendations) {
+          try {
+            await saveRecommendationApi(guideToSave.id, rec);
+          } catch (recError) {
+            console.warn('Failed to sync recommendation:', recError);
+          }
+        }
+        console.log('Recommendations synced');
+      }
+
       trackWithSession('guide_saved', { guideId: guideToSave.id });
       setSaveMessage({ type: 'success', text: 'Guide saved and synced to cloud!' });
     } catch (error) {
