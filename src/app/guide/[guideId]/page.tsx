@@ -32,30 +32,44 @@ export default function PublicGuidePage({ params }: PublicGuidePageProps) {
     return getBallotData();
   }, [hydrated]);
 
-  // If not in localStorage, fetch from database
+  // Fetch from database if needed (guide missing OR ballot missing)
   useEffect(() => {
     async function loadFromDatabase() {
-      if (!hydrated || localGuide || isLoading || loadedFromDb) return;
+      if (!hydrated || isLoading || loadedFromDb) return;
+
+      // Determine what we need to fetch
+      const needGuide = !localGuide;
+      const needBallot = !localBallot;
+
+      // If we have everything locally, no need to fetch
+      if (!needGuide && !needBallot) {
+        setLoadedFromDb(true);
+        return;
+      }
 
       setIsLoading(true);
       try {
-        // Fetch guide from database
-        const dbGuide = await fetchGuide(guideId);
-        if (dbGuide) {
-          // Save to localStorage for future views
-          saveGuide(dbGuide);
-          setGuideState(dbGuide);
+        let guideToUse = localGuide;
 
-          // Also fetch the associated ballot if we have a ballotId
-          if (dbGuide.ballotId) {
-            const dbBallot = await fetchBallot(dbGuide.ballotId);
-            if (dbBallot) {
-              // Save ballot to localStorage
-              saveBallotData(dbBallot);
-              setBallotState(dbBallot);
-            }
+        // Fetch guide if we don't have it
+        if (needGuide) {
+          const dbGuide = await fetchGuide(guideId);
+          if (dbGuide) {
+            saveGuide(dbGuide);
+            setGuideState(dbGuide);
+            guideToUse = dbGuide;
           }
         }
+
+        // Fetch ballot if we don't have it (and we have a guide with ballotId)
+        if (needBallot && guideToUse?.ballotId) {
+          const dbBallot = await fetchBallot(guideToUse.ballotId);
+          if (dbBallot) {
+            saveBallotData(dbBallot);
+            setBallotState(dbBallot);
+          }
+        }
+
         setLoadedFromDb(true);
       } catch (error) {
         console.warn('Failed to load from database:', error);
@@ -66,7 +80,7 @@ export default function PublicGuidePage({ params }: PublicGuidePageProps) {
     }
 
     loadFromDatabase();
-  }, [hydrated, localGuide, guideId, isLoading, loadedFromDb]);
+  }, [hydrated, localGuide, localBallot, guideId, isLoading, loadedFromDb]);
 
   const guide = guideState ?? localGuide;
   const ballot = ballotState ?? localBallot;

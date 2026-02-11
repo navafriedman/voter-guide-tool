@@ -32,41 +32,50 @@ export default function EditGuidePage({ params }: EditGuidePageProps) {
     return getBallotData();
   }, [hydrated]);
 
-  // If not in localStorage, fetch from database
+  // Fetch from database if needed (guide missing OR ballot missing)
   useEffect(() => {
     async function loadFromDatabase() {
-      console.log('loadFromDatabase check:', { hydrated, hasLocalGuide: !!localGuide, isLoading, loadedFromDb });
-      if (!hydrated || localGuide || isLoading || loadedFromDb) return;
+      if (!hydrated || isLoading || loadedFromDb) return;
+
+      // Determine what we need to fetch
+      const needGuide = !localGuide;
+      const needBallot = !localBallot;
+
+      // If we have everything locally, no need to fetch
+      if (!needGuide && !needBallot) {
+        setLoadedFromDb(true);
+        return;
+      }
 
       setIsLoading(true);
       try {
-        // Fetch guide from database
-        console.log('Fetching guide from database...', guideId);
-        const dbGuide = await fetchGuide(guideId);
-        console.log('Fetched guide:', dbGuide?.name, 'ballotId:', dbGuide?.ballotId);
+        let guideToUse = localGuide;
 
-        if (dbGuide) {
-          // Save to localStorage for future edits
-          saveGuide(dbGuide);
-          setGuideState(dbGuide);
+        // Fetch guide if we don't have it
+        if (needGuide) {
+          console.log('Fetching guide from database...', guideId);
+          const dbGuide = await fetchGuide(guideId);
+          console.log('Fetched guide:', dbGuide?.name, 'ballotId:', dbGuide?.ballotId);
 
-          // Track that this is a shared link access
-          trackWithSession('shared_link_accessed', { guideId: dbGuide.id });
-
-          // Also fetch the associated ballot if we have a ballotId
-          if (dbGuide.ballotId) {
-            console.log('Fetching ballot from database...', dbGuide.ballotId);
-            const dbBallot = await fetchBallot(dbGuide.ballotId);
-            console.log('Fetched ballot:', dbBallot?.name, 'races:', dbBallot?.races?.length);
-            if (dbBallot) {
-              // Save ballot to localStorage
-              saveBallotData(dbBallot);
-              setBallotState(dbBallot);
-            }
-          } else {
-            console.log('No ballotId on guide!');
+          if (dbGuide) {
+            saveGuide(dbGuide);
+            setGuideState(dbGuide);
+            guideToUse = dbGuide;
+            trackWithSession('shared_link_accessed', { guideId: dbGuide.id });
           }
         }
+
+        // Fetch ballot if we don't have it (and we have a guide with ballotId)
+        if (needBallot && guideToUse?.ballotId) {
+          console.log('Fetching ballot from database...', guideToUse.ballotId);
+          const dbBallot = await fetchBallot(guideToUse.ballotId);
+          console.log('Fetched ballot:', dbBallot?.name, 'races:', dbBallot?.races?.length);
+          if (dbBallot) {
+            saveBallotData(dbBallot);
+            setBallotState(dbBallot);
+          }
+        }
+
         setLoadedFromDb(true);
       } catch (error) {
         console.error('Failed to load from database:', error);
@@ -77,7 +86,7 @@ export default function EditGuidePage({ params }: EditGuidePageProps) {
     }
 
     loadFromDatabase();
-  }, [hydrated, localGuide, guideId, isLoading, loadedFromDb]);
+  }, [hydrated, localGuide, localBallot, guideId, isLoading, loadedFromDb]);
 
   const guide = guideState ?? localGuide;
   const ballot = ballotState ?? localBallot;
