@@ -66,7 +66,18 @@ export function saveBallotData(ballot: BallotData): void {
 export function getBallotData(): BallotData | null {
   if (typeof window === 'undefined') return null;
   const data = localStorage.getItem(STORAGE_KEYS.BALLOT);
-  return data ? JSON.parse(data) : null;
+  if (!data) return null;
+
+  const ballot = JSON.parse(data) as BallotData;
+
+  // Migration: Ensure ballot has an ID (old ballots might not have one)
+  if (!ballot.id) {
+    ballot.id = uuidv4();
+    // Save the migrated ballot back to localStorage
+    localStorage.setItem(STORAGE_KEYS.BALLOT, JSON.stringify(ballot));
+  }
+
+  return ballot;
 }
 
 export function clearBallotData(): void {

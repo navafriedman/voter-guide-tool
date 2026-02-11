@@ -6,7 +6,8 @@ import { RaceSection } from './RaceSection';
 import type { VoterGuide, BallotData, CandidateRecommendation } from '@/types';
 import { saveGuide, updateRecommendation, skipRace, unskipRace, skipCandidate, unskipCandidate, isRaceSkipped, isCandidateSkipped } from '@/lib/storage';
 import { updateGuideApi, saveBallotApi, saveRecommendationApi, skipRaceApi, skipCandidateApi, trackWithSession } from '@/lib/api-client';
-import { exportGuideToCSV, downloadCSV, generateExportFilename } from '@/lib/csv-export';
+import { exportGuideToCSV, generateExportFilename } from '@/lib/csv-export';
+import JSZip from 'jszip';
 
 interface GuideEditorProps {
   guide: VoterGuide;
@@ -18,6 +19,7 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
   const [localGuide, setLocalGuide] = useState<VoterGuide>(guide);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null);
   const [partyFilter, setPartyFilter] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -183,11 +185,18 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
 
   const handleSave = async () => {
     setIsSaving(true);
+    setSaveMessage(null);
+
+    // Ensure ballot has an ID (migration for old ballots)
+    const ballotToSave = {
+      ...ballot,
+      id: ballot.id || crypto.randomUUID(),
+    };
 
     // Ensure guide has ballotId linked
     const guideToSave = {
       ...localGuide,
-      ballotId: localGuide.ballotId || ballot.id,
+      ballotId: ballotToSave.id,
     };
 
     // Save to localStorage first (instant feedback)
@@ -204,25 +213,72 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
 
       const syncPromise = (async () => {
         // Save ballot first (so it exists when guide references it)
-        await saveBallotApi(ballot);
+        await saveBallotApi(ballotToSave);
         // Then save/update the guide
         await updateGuideApi(guideToSave.id, guideToSave);
         trackWithSession('guide_saved', { guideId: guideToSave.id });
       })();
 
       await Promise.race([syncPromise, timeoutPromise]);
+      setSaveMessage({ type: 'success', text: 'Guide saved and synced to cloud!' });
     } catch (error) {
       console.warn('Failed to sync guide to database:', error);
+      setSaveMessage({ type: 'warning', text: 'Saved locally. Cloud sync failed - try again later.' });
     }
 
     setIsSaving(false);
+
+    // Clear message after 5 seconds
+    setTimeout(() => setSaveMessage(null), 5000);
   };
 
-  const handleDownloadCSV = () => {
+  // Convert base64 data URL to blob
+  const dataURLToBlob = (dataURL: string): Blob => {
+    const parts = dataURL.split(',');
+    const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+    const bstr = atob(parts[1]);
+    const n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      u8arr[i] = bstr.charCodeAt(i);
+    }
+    return new Blob([u8arr], { type: mime });
+  };
+
+  const handleDownload = async () => {
+    const zip = new JSZip();
+
+    // Add CSV file
     const csv = exportGuideToCSV(localGuide, ballot);
-    const filename = generateExportFilename(localGuide.name);
-    downloadCSV(csv, filename);
-    trackWithSession('guide_exported', { guideId: localGuide.id, metadata: { format: 'csv' } });
+    zip.file('voter-guide.csv', csv);
+
+    // Add profile photo if exists
+    if (localGuide.authorPhoto && localGuide.authorPhoto.startsWith('data:')) {
+      const profileBlob = dataURLToBlob(localGuide.authorPhoto);
+      const ext = localGuide.authorPhoto.includes('image/png') ? 'png' : 'jpg';
+      zip.file(`profile.${ext}`, profileBlob);
+    }
+
+    // Add banner photo if exists
+    if (localGuide.bannerPhoto && localGuide.bannerPhoto.startsWith('data:')) {
+      const bannerBlob = dataURLToBlob(localGuide.bannerPhoto);
+      const ext = localGuide.bannerPhoto.includes('image/png') ? 'png' : 'jpg';
+      zip.file(`banner.${ext}`, bannerBlob);
+    }
+
+    // Generate and download ZIP
+    const content = await zip.generateAsync({ type: 'blob' });
+    const filename = generateExportFilename(localGuide.name).replace('.csv', '.zip');
+    const url = URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    trackWithSession('guide_exported', { guideId: localGuide.id, metadata: { format: 'zip' } });
   };
 
   const previewUrl = `/guide/${localGuide.id}`;
@@ -391,17 +447,6 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={localGuide.isPublished}
-                onChange={(e) => handleGuideInfoChange('isPublished', e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-gray-700">Publish this guide</span>
-            </label>
-          </div>
         </div>
 
         {/* Action Buttons */}
@@ -425,28 +470,36 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
             Preview
           </a>
 
-          {localGuide.isPublished && (
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.origin + previewUrl);
-                alert('Link copied to clipboard!');
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-            >
-              <Share2 className="w-4 h-4" />
-              Copy Share Link
-            </button>
-          )}
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.origin + previewUrl);
+              alert('Link copied to clipboard!');
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+          >
+            <Share2 className="w-4 h-4" />
+            Copy Share Link
+          </button>
 
           <button
-            onClick={handleDownloadCSV}
+            onClick={handleDownload}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           >
             <Download className="w-4 h-4" />
-            Download CSV
+            Download
           </button>
 
-          {lastSaved && (
+          {saveMessage && (
+            <span className={`self-center text-sm px-3 py-1 rounded-full ${
+              saveMessage.type === 'success' ? 'bg-green-100 text-green-700' :
+              saveMessage.type === 'warning' ? 'bg-yellow-100 text-yellow-700' :
+              'bg-red-100 text-red-700'
+            }`}>
+              {saveMessage.text}
+            </span>
+          )}
+
+          {lastSaved && !saveMessage && (
             <span className="self-center text-sm text-gray-500">
               Last saved: {lastSaved.toLocaleTimeString()}
             </span>
