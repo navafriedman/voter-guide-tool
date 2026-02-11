@@ -38,7 +38,8 @@ export default function EditGuidePage({ params }: EditGuidePageProps) {
       if (!hydrated || isLoading || loadedFromDb) return;
 
       // Determine what we need to fetch
-      const needGuide = !localGuide;
+      // Also re-fetch guide if it's missing ballotId (stale cache)
+      const needGuide = !localGuide || !localGuide.ballotId;
       const needBallot = !localBallot;
 
       // If we have everything locally, no need to fetch
