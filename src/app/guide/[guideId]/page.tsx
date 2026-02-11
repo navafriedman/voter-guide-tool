@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, AlertCircle, Edit, Vote } from 'lucide-react';
 import { PublicGuideView } from '@/components/PublicGuideView';
 import type { VoterGuide, BallotData } from '@/types';
-import { getGuideById, getBallotData, saveGuide, saveBallotData } from '@/lib/storage';
+import { saveGuide, saveBallotData } from '@/lib/storage';
 import { fetchGuide, fetchBallot } from '@/lib/api-client';
 import { useHydrated } from '@/lib/hooks';
 
@@ -20,36 +20,26 @@ export default function PublicGuidePage({ params }: PublicGuidePageProps) {
   const [ballot, setBallot] = useState<BallotData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Single effect to load everything
+  // Single effect to load everything - ALWAYS fetch from DB for latest data
   useEffect(() => {
     if (!hydrated) return;
 
     async function loadData() {
       try {
-        // Step 1: Try localStorage first, then DB
-        let currentGuide = getGuideById(guideId);
-        if (!currentGuide || !currentGuide.ballotId) {
-          const dbGuide = await fetchGuide(guideId);
-          if (dbGuide) {
-            saveGuide(dbGuide);
-            currentGuide = dbGuide;
-          }
-        }
-        if (currentGuide) {
-          setGuide(currentGuide);
-        }
+        // ALWAYS fetch guide from DB to get latest data
+        const dbGuide = await fetchGuide(guideId);
+        if (dbGuide) {
+          saveGuide(dbGuide); // Update localStorage cache
+          setGuide(dbGuide);
 
-        // Step 2: Try localStorage first, then DB
-        let currentBallot = getBallotData();
-        if (!currentBallot && currentGuide?.ballotId) {
-          const dbBallot = await fetchBallot(currentGuide.ballotId);
-          if (dbBallot) {
-            saveBallotData(dbBallot);
-            currentBallot = dbBallot;
+          // ALWAYS fetch ballot from DB if guide has ballotId
+          if (dbGuide.ballotId) {
+            const dbBallot = await fetchBallot(dbGuide.ballotId);
+            if (dbBallot) {
+              saveBallotData(dbBallot); // Update localStorage cache
+              setBallot(dbBallot);
+            }
           }
-        }
-        if (currentBallot) {
-          setBallot(currentBallot);
         }
       } catch (error) {
         console.warn('Failed to load:', error);
