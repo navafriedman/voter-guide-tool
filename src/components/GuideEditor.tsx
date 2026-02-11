@@ -133,30 +133,52 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
     setLocalGuide(updatedGuide);
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Compress and resize image to reduce size
+  const compressImage = (file: File, maxWidth: number, quality: number): Promise<string> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
+      const img = document.createElement('img');
 
-    // Convert to base64 for local storage
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      handleGuideInfoChange('authorPhoto', base64);
-    };
-    reader.readAsDataURL(file);
+      img.onload = () => {
+        // Calculate new dimensions
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
+      };
+
+      img.src = URL.createObjectURL(file);
+    });
   };
 
-  const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Convert to base64 for local storage
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      handleGuideInfoChange('bannerPhoto', base64);
-    };
-    reader.readAsDataURL(file);
+    // Compress to max 200px width, 80% quality for profile photo
+    const compressed = await compressImage(file, 200, 0.8);
+    handleGuideInfoChange('authorPhoto', compressed);
+  };
+
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Compress to max 1200px width, 80% quality for banner
+    const compressed = await compressImage(file, 1200, 0.8);
+    handleGuideInfoChange('bannerPhoto', compressed);
   };
 
   const handleSave = async () => {
@@ -174,13 +196,21 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
     onGuideUpdate(saved);
     setLastSaved(new Date());
 
-    // Sync to database in background
+    // Sync to database in background with timeout
     try {
-      // Save ballot first (so it exists when guide references it)
-      await saveBallotApi(ballot);
-      // Then save/update the guide
-      await updateGuideApi(guideToSave.id, guideToSave);
-      trackWithSession('guide_saved', { guideId: guideToSave.id });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Sync timeout')), 15000)
+      );
+
+      const syncPromise = (async () => {
+        // Save ballot first (so it exists when guide references it)
+        await saveBallotApi(ballot);
+        // Then save/update the guide
+        await updateGuideApi(guideToSave.id, guideToSave);
+        trackWithSession('guide_saved', { guideId: guideToSave.id });
+      })();
+
+      await Promise.race([syncPromise, timeoutPromise]);
     } catch (error) {
       console.warn('Failed to sync guide to database:', error);
     }
