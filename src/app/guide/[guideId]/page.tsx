@@ -32,39 +32,30 @@ export default function PublicGuidePage({ params }: PublicGuidePageProps) {
     return getBallotData();
   }, [hydrated]);
 
-  // Fetch from database if needed (guide missing OR ballot missing)
+  // Fetch from database - always try to get what we're missing
   useEffect(() => {
     async function loadFromDatabase() {
       if (!hydrated || isLoading || loadedFromDb) return;
 
-      // Determine what we need to fetch
-      // Also re-fetch guide if it's missing ballotId (stale cache)
-      const needGuide = !localGuide || !localGuide.ballotId;
-      const needBallot = !localBallot;
-
-      // If we have everything locally, no need to fetch
-      if (!needGuide && !needBallot) {
-        setLoadedFromDb(true);
-        return;
-      }
-
       setIsLoading(true);
-      try {
-        let guideToUse = localGuide;
 
-        // Fetch guide if we don't have it
-        if (needGuide) {
+      try {
+        // Step 1: Get the guide (either local or from DB)
+        let currentGuide = localGuide;
+
+        // Fetch guide if we don't have one OR if it's missing ballotId
+        if (!currentGuide || !currentGuide.ballotId) {
           const dbGuide = await fetchGuide(guideId);
           if (dbGuide) {
             saveGuide(dbGuide);
             setGuideState(dbGuide);
-            guideToUse = dbGuide;
+            currentGuide = dbGuide;
           }
         }
 
-        // Fetch ballot if we don't have it (and we have a guide with ballotId)
-        if (needBallot && guideToUse?.ballotId) {
-          const dbBallot = await fetchBallot(guideToUse.ballotId);
+        // Step 2: Get the ballot if we don't have it locally
+        if (!localBallot && currentGuide?.ballotId) {
+          const dbBallot = await fetchBallot(currentGuide.ballotId);
           if (dbBallot) {
             saveBallotData(dbBallot);
             setBallotState(dbBallot);
@@ -81,7 +72,7 @@ export default function PublicGuidePage({ params }: PublicGuidePageProps) {
     }
 
     loadFromDatabase();
-  }, [hydrated, localGuide, localBallot, guideId, isLoading, loadedFromDb]);
+  }, [hydrated, guideId, isLoading, loadedFromDb]); // Removed localGuide/localBallot from deps
 
   const guide = guideState ?? localGuide;
   const ballot = ballotState ?? localBallot;

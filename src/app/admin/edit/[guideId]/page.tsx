@@ -32,28 +32,20 @@ export default function EditGuidePage({ params }: EditGuidePageProps) {
     return getBallotData();
   }, [hydrated]);
 
-  // Fetch from database if needed (guide missing OR ballot missing)
+  // Fetch from database - always try to get what we're missing
   useEffect(() => {
     async function loadFromDatabase() {
       if (!hydrated || isLoading || loadedFromDb) return;
 
-      // Determine what we need to fetch
-      // Also re-fetch guide if it's missing ballotId (stale cache)
-      const needGuide = !localGuide || !localGuide.ballotId;
-      const needBallot = !localBallot;
-
-      // If we have everything locally, no need to fetch
-      if (!needGuide && !needBallot) {
-        setLoadedFromDb(true);
-        return;
-      }
-
       setIsLoading(true);
-      try {
-        let guideToUse = localGuide;
+      console.log('Starting load...', { hasLocalGuide: !!localGuide, hasLocalBallot: !!localBallot });
 
-        // Fetch guide if we don't have it
-        if (needGuide) {
+      try {
+        // Step 1: Get the guide (either local or from DB)
+        let currentGuide = localGuide;
+
+        // Fetch guide if we don't have one OR if it's missing ballotId
+        if (!currentGuide || !currentGuide.ballotId) {
           console.log('Fetching guide from database...', guideId);
           const dbGuide = await fetchGuide(guideId);
           console.log('Fetched guide:', dbGuide?.name, 'ballotId:', dbGuide?.ballotId);
@@ -61,20 +53,26 @@ export default function EditGuidePage({ params }: EditGuidePageProps) {
           if (dbGuide) {
             saveGuide(dbGuide);
             setGuideState(dbGuide);
-            guideToUse = dbGuide;
+            currentGuide = dbGuide;
             trackWithSession('shared_link_accessed', { guideId: dbGuide.id });
           }
         }
 
-        // Fetch ballot if we don't have it (and we have a guide with ballotId)
-        if (needBallot && guideToUse?.ballotId) {
-          console.log('Fetching ballot from database...', guideToUse.ballotId);
-          const dbBallot = await fetchBallot(guideToUse.ballotId);
+        // Step 2: Get the ballot if we don't have it locally
+        if (!localBallot && currentGuide?.ballotId) {
+          console.log('Fetching ballot from database...', currentGuide.ballotId);
+          const dbBallot = await fetchBallot(currentGuide.ballotId);
           console.log('Fetched ballot:', dbBallot?.name, 'races:', dbBallot?.races?.length);
+
           if (dbBallot) {
             saveBallotData(dbBallot);
             setBallotState(dbBallot);
+            console.log('Ballot state set!');
+          } else {
+            console.error('Ballot fetch returned null!');
           }
+        } else {
+          console.log('Skipping ballot fetch:', { hasLocalBallot: !!localBallot, hasBallotId: !!currentGuide?.ballotId });
         }
 
         setLoadedFromDb(true);
@@ -83,11 +81,12 @@ export default function EditGuidePage({ params }: EditGuidePageProps) {
         setLoadedFromDb(true);
       } finally {
         setIsLoading(false);
+        console.log('Load complete');
       }
     }
 
     loadFromDatabase();
-  }, [hydrated, localGuide, localBallot, guideId, isLoading, loadedFromDb]);
+  }, [hydrated, guideId, isLoading, loadedFromDb]); // Removed localGuide/localBallot from deps to prevent re-runs
 
   const guide = guideState ?? localGuide;
   const ballot = ballotState ?? localBallot;
