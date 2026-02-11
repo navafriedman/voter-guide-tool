@@ -35,12 +35,16 @@ export default function EditGuidePage({ params }: EditGuidePageProps) {
   // If not in localStorage, fetch from database
   useEffect(() => {
     async function loadFromDatabase() {
+      console.log('loadFromDatabase check:', { hydrated, hasLocalGuide: !!localGuide, isLoading, loadedFromDb });
       if (!hydrated || localGuide || isLoading || loadedFromDb) return;
 
       setIsLoading(true);
       try {
         // Fetch guide from database
+        console.log('Fetching guide from database...', guideId);
         const dbGuide = await fetchGuide(guideId);
+        console.log('Fetched guide:', dbGuide?.name, 'ballotId:', dbGuide?.ballotId);
+
         if (dbGuide) {
           // Save to localStorage for future edits
           saveGuide(dbGuide);
@@ -51,17 +55,21 @@ export default function EditGuidePage({ params }: EditGuidePageProps) {
 
           // Also fetch the associated ballot if we have a ballotId
           if (dbGuide.ballotId) {
+            console.log('Fetching ballot from database...', dbGuide.ballotId);
             const dbBallot = await fetchBallot(dbGuide.ballotId);
+            console.log('Fetched ballot:', dbBallot?.name, 'races:', dbBallot?.races?.length);
             if (dbBallot) {
               // Save ballot to localStorage
               saveBallotData(dbBallot);
               setBallotState(dbBallot);
             }
+          } else {
+            console.log('No ballotId on guide!');
           }
         }
         setLoadedFromDb(true);
       } catch (error) {
-        console.warn('Failed to load from database:', error);
+        console.error('Failed to load from database:', error);
         setLoadedFromDb(true);
       } finally {
         setIsLoading(false);
