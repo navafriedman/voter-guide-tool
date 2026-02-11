@@ -288,7 +288,7 @@ export function CandidateCard({
               </div>
 
               {/* Commentary Input */}
-              {status !== 'none' && (
+              {status !== 'none' && status !== 'no_recommendation' && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <label className="flex items-center gap-2 text-sm font-medium text-blue-800 mb-2">
                     <MessageSquare className="w-4 h-4" />
