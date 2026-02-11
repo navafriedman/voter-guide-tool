@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Save, Eye, Share2, Upload, User, RotateCcw, SkipForward, Filter, Download, Image } from 'lucide-react';
 import { RaceSection } from './RaceSection';
 import type { VoterGuide, BallotData, CandidateRecommendation } from '@/types';
-import { saveGuide, updateRecommendation, skipRace, unskipRace, skipCandidate, unskipCandidate, isRaceSkipped, isCandidateSkipped } from '@/lib/storage';
+import { saveGuide, saveBallotData, updateRecommendation, skipRace, unskipRace, skipCandidate, unskipCandidate, isRaceSkipped, isCandidateSkipped } from '@/lib/storage';
 import { updateGuideApi, saveBallotApi, saveRecommendationApi, skipRaceApi, skipCandidateApi, trackWithSession } from '@/lib/api-client';
 import { exportGuideToCSV, generateExportFilename } from '@/lib/csv-export';
 import JSZip from 'jszip';
@@ -193,37 +193,37 @@ export function GuideEditor({ guide, ballot, onGuideUpdate }: GuideEditorProps) 
       id: ballot.id || crypto.randomUUID(),
     };
 
+    // Save ballot to localStorage with the ID (important for consistency)
+    saveBallotData(ballotToSave);
+
     // Ensure guide has ballotId linked
     const guideToSave = {
       ...localGuide,
       ballotId: ballotToSave.id,
     };
 
-    // Save to localStorage first (instant feedback)
+    // Save guide to localStorage
     const saved = saveGuide(guideToSave);
     setLocalGuide(saved);
     onGuideUpdate(saved);
     setLastSaved(new Date());
 
-    // Sync to database in background with timeout
+    // Sync to database (no timeout - let it complete)
     try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Sync timeout')), 15000)
-      );
+      // Save ballot first (so it exists when guide references it)
+      console.log('Saving ballot to cloud...', ballotToSave.id);
+      await saveBallotApi(ballotToSave);
+      console.log('Ballot saved, now saving guide...');
 
-      const syncPromise = (async () => {
-        // Save ballot first (so it exists when guide references it)
-        await saveBallotApi(ballotToSave);
-        // Then save/update the guide
-        await updateGuideApi(guideToSave.id, guideToSave);
-        trackWithSession('guide_saved', { guideId: guideToSave.id });
-      })();
+      // Then save/update the guide
+      await updateGuideApi(guideToSave.id, guideToSave);
+      console.log('Guide saved successfully');
 
-      await Promise.race([syncPromise, timeoutPromise]);
+      trackWithSession('guide_saved', { guideId: guideToSave.id });
       setSaveMessage({ type: 'success', text: 'Guide saved and synced to cloud!' });
     } catch (error) {
-      console.warn('Failed to sync guide to database:', error);
-      setSaveMessage({ type: 'warning', text: 'Saved locally. Cloud sync failed - try again later.' });
+      console.error('Failed to sync to database:', error);
+      setSaveMessage({ type: 'error', text: 'Cloud sync failed. Check console for details.' });
     }
 
     setIsSaving(false);
